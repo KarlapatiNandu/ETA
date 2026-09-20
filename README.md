@@ -43,12 +43,10 @@ Department of Information Technology · Chaitanya Bharathi Institute of Technolo
   - [Running a simulated fleet](#running-a-simulated-fleet)
   - [Useful commands](#useful-commands)
 - [Project structure](#project-structure)
-- [Roadmap](#roadmap)
 - [Documentation](#documentation)
 - [Contributing](#contributing)
 - [Acknowledgments](#acknowledgments)
 - [License](#license)
-- [Contact](#contact)
 
 ## The problem
 
@@ -90,7 +88,7 @@ Bus tracking is a solved problem — for regulators and for city transit. It is 
 
 **Notifications are tiered and idempotent.** Five tiers from `CRITICAL` to `AMBIENT`. A twelve-stop route produces *one* notification that updates in place, not twelve stacked ones. A database-level uniqueness constraint makes double-notification structurally impossible, because notification fatigue is the fastest way to lose a user permanently.
 
-**Correctness under degradation, not throughput.** Thirty buses at a 5-second cadence is six writes per second and about four kilobytes of live state. The engineering difficulty here is being right when the network is bad — not being fast when it is good.
+**Correctness under degradation, not throughput.** Thirty buses at a 5-second cadence is six writes per second and about four kilobytes of live state. The engineering difficulty here is being right when the network is bad — not being fast when it is good. The one place scale does bite is readers: everybody opens the app in the same five minutes, so peak concurrency tracks ridership almost 1:1 rather than being a comfortable fraction of it.
 
 ## Targets
 
@@ -99,14 +97,14 @@ Bus tracking is a solved problem — for regulators and for city transit. It is 
 | **End-to-end latency** | ~3 s p50, ~6 s p95, from GPS ping to pixel |
 | **ETA accuracy** | MAE under 90 s at a 10-minute horizon |
 | **Alert latency** | Under 10 s p95, from event to phone |
-| **Scale** | 30 buses, 300 concurrent students |
-| **Recurring cost** | ≈ ₹5,200/month all-in (≈ ₹18 per student per year) |
+| **Scale** | 30 buses, ~600 concurrent students at peak |
+| **Recurring cost** | ≈ ₹5,600/month at pilot, ≈ ₹8,000/month at full fleet (≈ ₹20 per student per year) |
 
 ## Tech stack
 
 | Layer | Choice |
 |---|---|
-| **Web app** | Next.js 15 · React 19 · TypeScript · Tailwind v4 · shadcn/ui · MapLibre GL |
+| **Web app** | Next.js 15 · React 19 · TypeScript · Tailwind v4 · shadcn/ui · MapLibre GL · self-hosted vector tiles |
 | **Driver app** | Vite + React PWA · Geolocation API · Screen Wake Lock · IndexedDB buffer |
 | **API & realtime** | Fastify 5 · Server-Sent Events · Node 22 |
 | **Workers** | BullMQ · Redis Streams |
@@ -146,7 +144,7 @@ Full topology, latency budget and failure-mode table: [`docs/ARCHITECTURE.md`](d
 - Node.js 22+ and pnpm 9+
 - Docker Desktop
 - Supabase CLI
-- ~10 GB free disk (OSRM preprocessing of the Telangana OSM extract)
+- ~10 GB free disk and ~8 GB RAM (one-time OSRM and vector-tile preprocessing of the Hyderabad OSM extract)
 
 ### Setup
 
@@ -158,10 +156,11 @@ pnpm install
 cp .env.example .env.local        # every variable is documented inline
 
 pnpm osrm:prepare                 # one-time; downloads and preprocesses the OSM extract
+pnpm tiles:prepare                 # one-time; renders vector tiles from the same extract
 pnpm dev                          # brings up the full local stack
 ```
 
-`pnpm dev` starts Supabase (Postgres + PostGIS, Auth, Storage), Redis, both OSRM profiles, Photon and Mailpit; applies migrations; seeds routes, stops and test users; and launches the gateway, engine, web app and driver app.
+`pnpm dev` starts Supabase (Postgres + PostGIS, Auth, Storage), Redis, both OSRM profiles, Photon, the vector tile server and Mailpit; applies migrations; seeds routes, stops and test users; and launches the gateway, engine, web app and driver app.
 
 **No cloud account is required for local development or testing.**
 
@@ -262,6 +261,8 @@ A `CONTRIBUTING.md` with commit conventions and PR checklist will be added along
 ## License
 
 Not yet licensed. Until a `LICENSE` file is added, all rights are reserved by the authors and no reuse, modification or redistribution is permitted — this is the default under copyright law for any public repository without an explicit license. A permissive open-source license will be selected before the Stage 9 public/campus-wide release; see [choosealicense.com](https://choosealicense.com/) for the shortlist under consideration.
+
+**One caveat to settle before that release.** Route geometry in this project is produced by map-matching surveyed GPS traces against OpenStreetMap road data via OSRM. That arguably makes the resulting `routes` and `stops` data a *Derivative Database* under the [ODbL](https://opendatacommons.org/licenses/odbl/), which carries share-alike obligations — obligations that do not sit comfortably alongside an all-rights-reserved posture. This affects the **route data**, not the application code. It is very likely a non-issue in practice (publishing campus bus routes costs nothing and helps everyone), but it should be a decision rather than an oversight.
 
 <!-- ## Contact
 

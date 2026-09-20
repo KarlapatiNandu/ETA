@@ -11,15 +11,20 @@ Before choosing anything, be honest about the numbers:
 
 | Dimension | Value at full fleet | Implication |
 |---|---|---|
-| Buses reporting | 30 | — |
+| Buses reporting | 30 | the deck costed 25; 30 is the planning number, and the gap is headroom, not a discrepancy to resolve later |
 | Ping interval (moving) | 5 s | **6 writes/sec ingest** |
-| Ping interval (idle) | 30 s | negligible |
-| Concurrent students | 300 | 300 open streams |
+| Ping interval (idle) | 15 s | negligible — and see §5.7: presence thresholds are derived from this, not hard-coded |
+| Riders (fleet capacity) | ~1,500 | 30 buses × ~50 seats |
+| Concurrent students (peak) | **600** | see below |
 | Live fleet state | 30 × ~120 bytes | **~4 KB — fits in L2 cache** |
-| Positions/day | 30 × 4 h × 720/h | ~86 k rows/day, ~31 M/yr |
-| Notifications/day | ~300 users × ~6 | ~1,800 sends/day |
+| Positions/day | 30 × 4 h × 720/h | ~86 k rows/day, ~19 M/yr over ~220 service days |
+| Notifications/day | ~600 users × ~6 | ~3,600 sends/day |
 
-**This is not a big-data problem.** Six writes per second is nothing. The entire live state of the fleet is four kilobytes. A single Node process could serve this a hundred times over.
+⚠️ **The concurrency number is the assumption most likely to be wrong, and everything downstream inherits it.** The app exists to answer one question at one moment — 7:40 a.m., when every rider is deciding whether to leave. Peak concurrency is therefore *not* a modest fraction of the user base; it approaches all of it. 600 is ~40% of fleet capacity in the peak minute. Load targets are set at 600 with a 1,000-client headroom run (§Stage 8).
+
+**Confirm the real number before Stage 8** by asking the Transport Department for actual daily ridership. If it is materially above 1,500, the SSE fan-out and the Fly.io sizing both need re-deriving — and it is far cheaper to learn that from a spreadsheet than from a load test.
+
+**This is not a big-data problem.** Six writes per second is nothing. The entire live state of the fleet is four kilobytes. A single Node process could serve this many times over, even at 600 concurrent readers.
 
 What this *is*, is a **low-latency, high-correctness, high-fan-out-fairness** problem. The failure modes that kill this product are not throughput failures:
 
@@ -55,7 +60,7 @@ If Postgres goes down mid-route, the live map keeps working. That property is no
 | **Driver app** | Separate Vite + React PWA | Must be a *tiny*, dependency-light bundle that boots on a cheap Android phone on a weak connection. Bundling it into Next.js would drag the whole student app's JS along. A separate origin also means a driver's service worker can never conflict with a student's. |
 | **PWA / service worker** | Serwist | Actively maintained successor to `next-pwa`. Needed for installability (iOS push requires it), the offline shell, and the `push` / `notificationclick` handlers. |
 | **Styling** | Tailwind CSS v4 + shadcn/ui + Framer Motion | See §8 for the visual direction. shadcn gives accessible primitives we own the source of, rather than fighting a component library's opinions. |
-| **Map** | MapLibre GL JS + MapTiler vector tiles | Free and open. Vector tiles let us restyle to the app theme instead of accepting Google's grey. GPU rendering makes 30 animated markers cost nothing. Mapbox GL went proprietary at v2; MapLibre is the fork that stayed open. |
+| **Map** | MapLibre GL JS + **self-hosted vector tiles** (OpenMapTiles/Planetiler, Hyderabad extract, served from the OSRM box) | MapLibre is free and open; vector tiles let us restyle to the app theme instead of accepting Google's grey, and GPU rendering makes 30 animated markers cost nothing. Mapbox GL went proprietary at v2; MapLibre is the fork that stayed open. **Tiles are self-hosted — see ADR-0005 below.** |
 | **Client state** | TanStack Query + Zustand | Query for REST/cached server state (stops, routes, notification history), Zustand for the live SSE-fed fleet store. Do not put streaming positions in Query — it is a cache, not a stream. |
 | **API + realtime** | Fastify 5 on Node 22, native **SSE** | See ADR-0001 below. |
 | **Hot state** | Redis 7 — Hashes, Streams, TTL keys | Sub-millisecond fleet state. Streams give durable, replayable ingest with consumer groups, so the persister can lag or crash without dropping pings. |
@@ -87,7 +92,19 @@ If Postgres goes down mid-route, the live map keeps working. That property is no
 
 **We still use Supabase Realtime** for low-frequency admin state (fleet status edits, ticket transitions) inside the admin console, where its convenience is worth it and latency does not matter.
 
-### 2.3 ADR-0002 — Redis as the live fleet, Postgres as the record
+### 2.3 ADR-0005 — Self-hosted tiles, not a tile SaaS free tier
+
+**Context.** MapLibre renders tiles; it does not serve them. The deck's cost model lists map tiles at ₹0, which is only true if we host them.
+
+**The arithmetic that forces the decision.** 600 peak users, ~2 sessions each per weekday, ~150–250 tile requests per map session, ~22 service days: **≈ 4–6 million tile requests per month.** Every hosted tile free tier is in the 100 k/month range — MapTiler's included. At that volume a SaaS plan is a recurring four-figure-rupee line item that the deck never budgeted, and it scales with adoption, which is the wrong direction for a cost to move.
+
+**Decision: self-host.** A Hyderabad-bbox extract rendered once with Planetiler produces an `.mbtiles` file in the low hundreds of MB, served by `tileserver-gl` or straight from object storage as PMTiles behind Cloudflare. It sits on the OSRM box, which is already provisioned and idle between routing calls. Cloudflare caches the tiles at the edge, so origin load is negligible.
+
+**Consequence.** One more service to build and monitor in Stage 0, and tiles go stale until the extract is re-rendered (a quarterly cron job — campus roads do not move). In exchange, the tile bill is genuinely ₹0 and stays ₹0 as usage grows.
+
+**Rejected:** MapTiler/Stadia paid tiers (recurring cost that grows with adoption), raster OSM tiles from the public `tile.openstreetmap.org` (forbidden by their tile usage policy for an application, and raster cannot be restyled to the theme).
+
+### 2.4 ADR-0002 — Redis as the live fleet, Postgres as the record
 
 Redis holds authoritative *current* state; Postgres holds authoritative *historical* state. On gateway boot, Redis is rehydrated from the last 5 minutes of `positions` so a restart does not blank the map. Redis persistence is AOF `everysec` — losing one second of live positions on a hard crash is acceptable because the next ping is five seconds away.
 
@@ -183,6 +200,10 @@ A route is a polyline of `N` vertices with a precomputed array of cumulative dis
 
 Reducing a 2-D tracking problem to a 1-D scalar is what makes everything downstream cheap and robust.
 
+**Route versions and route lineage.** A published route is immutable; correcting it creates `version + 1` as a *new row with a new id*, so historical trips still resolve the geometry they actually ran. But everything the system *learns* — segment speeds, dead-zone polygons, dwell times — is keyed by route, and keying it by the versioned `id` would mean **every route correction silently resets the traffic model and the learned dead zones to cold start.** Moving one stop 50 m would cost a semester of accumulated history.
+
+Every route therefore carries a stable `lineage_id` that survives versioning. Operational data keys on `id` (what ran); learned data keys on `lineage_id` (what we know about this road). A re-survey that changes geometry by metres keeps its history; a genuinely new route gets a new lineage and starts cold, correctly.
+
 ### 5.2 Snapping (raw GPS → route offset)
 
 ```
@@ -205,12 +226,21 @@ The forward-biased window assumes monotonic progress, making the common case O(1
 GPS jitter makes raw offsets oscillate. Enforce:
 
 ```
-if s_new < s_prev - BACKWARD_TOLERANCE (30 m):  reject, keep s_prev
+if s_new < s_prev - BACKWARD_TOLERANCE (30 m):  reject, keep s_prev, backwardRun++
 if s_new - s_prev > maxPlausibleJump(dt):       reject as a GPS spike
-else:                                           accept
+else:                                           accept, backwardRun = 0
+
+-- recovery: a genuine reversal is not jitter
+if backwardRun >= 4 consecutive pings:
+     discard the window hint, re-snap globally over [0, N]
+     reset trip:{id}:seq to the stop index implied by the new offset
+     emit TRIP_RESNAPPED (audit + admin console), suppress ETAs for one cycle
+     backwardRun = 0
 ```
 
-Without this, a stop can "arrive" twice as the offset jitters across its boundary. This is the root cause of duplicate-notification bugs in most naive implementations.
+Without the rejection rule, a stop can "arrive" twice as the offset jitters across its boundary. This is the root cause of duplicate-notification bugs in most naive implementations.
+
+⚠️ **Without the recovery rule, the opposite bug appears and is worse.** A U-turn, a missed turn, or a driver who starts the trip mid-route moves the bus genuinely backwards *along the route geometry* — perpendicular distance stays near zero, so `OFF_ROUTE` never fires, and the offset freezes for the remainder of the trip while every downstream ETA silently rots. Four sustained backward pings is well outside GPS jitter (σ ≈ 8 m against a 30 m tolerance) and unambiguously means the bus really did reverse. Re-snap, do not hold.
 
 ### 5.4 Stop arrival — crossing, not circles
 
@@ -227,9 +257,17 @@ confirm arrival when:  speed < 8 km/h within ±60 s   (bus actually stopped)
                   OR:  s_now ≥ D_k + 100 m           (bus drove straight through)
 
 departed(k) ⟺ confirmed arrival AND speed > 12 km/h AND s_now > D_k + 50 m
+
+skipped(k)  ⟺  k == expectedNextStopIndex(trip)
+                AND s_now > D_k + 300 m        -- bus is decisively past it
+                AND no arrival was ever confirmed for k
+             → write trip_stop_events(event = 'skipped', source = 'inferred')
+             → advance trip:{id}:seq past k
 ```
 
-Sequence state lives in `trip:{id}:seq` and only ever increases. Every emitted event writes to `trip_stop_events` with a `UNIQUE (trip_id, stop_id, event)` constraint — so the database is the final idempotency backstop even if a worker is replayed.
+⚠️ **The `skipped` rule is not optional bookkeeping — it is what stops one bad stop from poisoning the whole trip.** Because `arrived(k)` requires `k == expectedNextStopIndex`, a single unconfirmed stop would otherwise block stops *k+1 … N* for the rest of the run: no arrival events, no progress notifications, and a route timeline frozen at stop 4 while the bus is at stop 11. Detours, a driver skipping an empty stop, and a dead zone spanning a stop all produce this. Advancing the sequence on a decisive pass-by is the release valve.
+
+Sequence state lives in `trip:{id}:seq` and only ever increases. Every emitted event writes to `trip_stop_events` with a `UNIQUE (trip_id, seq, event)` constraint (keyed on `seq`, not `stop_id`, so a route may legitimately serve the same stop twice) — so the database is the final idempotency backstop even if a worker is replayed.
 
 ### 5.5 ETA
 
@@ -238,18 +276,30 @@ Three inputs, blended, degrading gracefully as history accumulates:
 ```
 For each segment between current offset s and target stop offset D_k:
 
-  v_hist  = rolling median speed for (route, segmentBucket, weekday, timeOfDayBucket)
+  v_hist  = rolling median speed, resolved down the fallback ladder below
   v_live  = EWMA of recent observed speed, α = 0.3
   v_osrm  = OSRM's free-flow expected speed for that geometry
 
-  v_expected = 0.55·v_hist + 0.35·v_live + 0.10·v_osrm     (history exists)
-             = 0.60·v_osrm·congestionFactor + 0.40·v_live  (cold start, < 10 trips)
+  v_expected = 0.55·v_hist + 0.35·v_live + 0.10·v_osrm     (v_hist resolved)
+             = 0.60·v_osrm·congestionFactor + 0.40·v_live  (no rung had samples)
 
   where congestionFactor = clamp(v_live / v_osrm_here, 0.3, 1.2)
   clamp v_expected to [5, 60] km/h
 
 ETA_k = Σ (segmentLength / v_expected) + Σ expectedDwell(intermediate stops)
 ```
+
+**The `v_hist` fallback ladder.** Take the first rung with `sample_count ≥ 5`:
+
+```
+1. (lineage, segment, weekday, tod_bucket)     -- exact
+2. (lineage, segment, weekdayClass, tod_bucket) -- weekday vs weekend
+3. (lineage, segment, tod_bucket)               -- any day
+4. (lineage, segment)                           -- any time
+5. none  →  fall through to the cold-start blend above
+```
+
+⚠️ **Rung 1 will almost never be populated, and the design has to assume that.** A route runs ~2 trips a day. Keyed by weekday *and* a 15-minute bucket, each exact cell accumulates roughly **one sample per week** — so "history exists" would not engage until well into a second semester. Without the ladder the system is permanently in cold start while *appearing* to have a learned traffic model, which is the worst of both. The ladder means a route has usable history within about a fortnight (rung 3–4) and sharpens toward rung 1 over a term.
 
 `expectedDwell` is the historical median of `departed − arrived` per stop, defaulting to 30 s.
 
@@ -278,14 +328,20 @@ Evaluated by a ticker every 10 s that iterates only *active* subscriptions — a
 
 This is an explicit product requirement and deserves more than a timeout.
 
-**Presence state machine**, driven by a 5 s sweeper over `fleet:live`:
+**Presence state machine**, driven by a 5 s sweeper over `fleet:live`. Thresholds are **multiples of the tracker's current reporting cadence**, never absolute seconds:
 
 | State | Condition | Map | Notification |
 |---|---|---|---|
-| `LIVE` | age < 25 s | solid marker | — |
-| `DEGRADED` | 25 s ≤ age < 75 s | amber, "last seen 34 s ago" | none — avoid alarm fatigue |
-| `DARK` | age ≥ 75 s | red, frozen at last known, explicit timestamp | see classification below |
+| `LIVE` | age < 3 × cadence | solid marker | — |
+| `DEGRADED` | 3 × cadence ≤ age < 9 × cadence | amber, "last seen 34 s ago" | none — avoid alarm fatigue |
+| `DARK` | age ≥ 9 × cadence | red, frozen at last known, explicit timestamp | see classification below |
 | `ENDED` | explicit trip end, or DARK > 10 min | **removed from map** | trip closed |
+
+So a moving bus (5 s cadence) goes amber at 15 s and red at 45 s; a stationary one (15 s cadence) at 45 s and 135 s.
+
+⚠️ **Absolute thresholds are a bug here, not a simplification.** The tracker throttles to a slower cadence when stationary (§1). A fixed 25 s DEGRADED line is *below* the idle cadence, so every bus would flash amber at every stop — a healthy fleet rendered as a failing one, several times per trip, which is exactly the alarm fatigue the state machine exists to prevent. Deriving the thresholds from cadence makes the state mean "this tracker missed pings it owed us," which is the thing we actually care about.
+
+**This requires a contract change:** every `PingBatch` carries `cadence_s`, the interval the tracker is currently reporting at. The gateway writes it into `fleet:live` alongside the position, and the sweeper reads it. A batch without it is treated as 5 s.
 
 ⚠️ Do not rely on Redis key-expiry notifications for this — they are lazy and best-effort. Run an explicit sweeper.
 
@@ -295,10 +351,10 @@ This is an explicit product requirement and deserves more than a timeout.
 if lastKnownPosition ∈ a known dead_zones polygon:
     → "Bus 14 is in a known dead zone near Uppal flyover.
        Usually clears in about 90 seconds."
-    → tier INFO, in-app only, NO push
+    → tier T4 AMBIENT — in-app only, NO push
 else:
     → "Signal lost from Bus 14 near <nearest landmark>."
-    → tier WARNING, push to today's riders of that trip + admin console
+    → tier T2 IMPORTANT — push to today's riders of that trip + admin console
     → open an automatic ticket if it persists past 5 minutes
 ```
 
@@ -355,17 +411,21 @@ event → tier resolution → audience resolution → per-user filters
 
 1. `profiles.alerts_paused_until > now()` → suppress (unless T0 and the user has not opted out of critical breakthrough)
 2. `favourites.muted_until > now()` for that bus → suppress
-3. Tier below the user's minimum preference → suppress
+3. `tier > profiles.max_tier` → suppress (default `max_tier = 3`, so T4 AMBIENT stays in-app)
 4. Quiet hours → defer non-T0 to the next window
 
 **Channel selection:**
 
 ```
 for each recipient:
-  if has a healthy push subscription                        → web push
-  if tier ≤ T1 and (no push sub OR push failed within 20 s) → SMS
-  always                                                    → write to notification center
+  if has a healthy push subscription                → web push (await the HTTP response)
+  if tier ≤ T1 and (no push subscription
+                    OR every subscription unhealthy
+                    OR the push POST returned non-2xx) → SMS, immediately
+  always                                            → write to notification center
 ```
+
+⚠️ **There is no "wait and see if push arrived" step, because Web Push gives you no delivery receipt.** A `201 Created` means the push *service* accepted the message for delivery — not that the phone rendered it. The only failure signal that exists is the HTTP status of our own POST, and that is synchronous. Any waiting period before falling back to SMS would therefore buy zero additional information while spending the alert-latency budget outright: the p95 event-to-buzz target is 10 s (Stage 6), and a T1 "leave now" that arrives late is the exact failure this product cannot have. Decide on the response, send both if in doubt — a duplicate "leave now" across two channels is a far cheaper error than a late one.
 
 Note that **the notification center is written unconditionally**, regardless of push success. The in-app history is the source of truth; push and SMS are best-effort transports on top of it.
 
@@ -391,6 +451,7 @@ This directly implements the requested flow: a student receiving an alert from a
 - **"I'm on the bus"** → `now() + 3h`, capped at 23:59 local, and clears the day's `trip_subscription`.
 - Auto-clears at the start of the next service window, so a student who pauses in the evening still gets morning alerts.
 - **Per-bus mute** (`favourites.muted_until`) is the finer-grained tool; the global switch is the panic button.
+- **Quiet hours** are stored as `(quiet_start_min, quiet_duration_min)` rather than a range, because the common case — 22:00 to 06:00 — wraps past midnight and cannot be expressed as one.
 - T0 CRITICAL breaks through by default; a user can disable that in settings.
 
 *Optional (Stage 8):* if the student's browser location is within 100 m of a bus and both are moving above 15 km/h, prompt "On Bus 14? Mute alerts for 3 hours." ⚠️ This only works while the tab is open — **web apps cannot track location in the background**, which is precisely why this is a prompt and not an automatic action.
@@ -407,16 +468,20 @@ One SSE connection per client: `GET /v1/stream` (JWT via a fetch-based EventSour
 |---|---|---|
 | `fleet.snapshot` | full state of relevant buses | on connect / resume |
 | `bus.position` | delta: `{id, lat, lng, spd, hdg, s, ts}` | ≤ 1 Hz per bus |
-| `bus.status` | `LIVE \| DEGRADED \| DARK \| ENDED` + reason | on transition |
+| `bus.status` | `LIVE \| DEGRADED \| DARK \| ENDED` + reason + `cadence` | on transition |
 | `eta.update` | `{tripId, stopId, p50, p90}` for the client's stop | on change > 30 s |
 | `stop.reached` | `{tripId, stopId, seq}` | on event |
 | `notification` | notification-center entry | on send |
 | `ticket.update` | ticket state transition | on change |
 | `:heartbeat` | comment frame | every 15 s |
 
-**Subscription scoping.** The client posts `{bbox, busIds}` to `/v1/stream/focus`; the server sends only buses in view plus the client's favourites and active trip. At 30 buses we could broadcast everything (30 × 60 B = 1.8 KB/s per client; 300 clients ≈ 4 Mbit/s), but scoping drops that by ~80% and is the pattern that survives a 200-bus future.
+**Subscription scoping.** The client posts `{bbox, busIds}` to `/v1/stream/focus`; the server sends only buses in view plus the client's favourites and active trip. At 30 buses, broadcasting everything costs 30 × 60 B = 1.8 KB/s per client — which at **600 concurrent clients is ≈ 8.6 Mbit/s of egress, sustained, during the exact five minutes everyone is connected.** That is survivable but wasteful, and it is the number that grows fastest if real ridership turns out higher than assumed. Scoping drops it by ~80% to under 2 Mbit/s and is the pattern that survives both a 200-bus future and a concurrency estimate that was too low.
 
 **Resumption.** Each frame carries an `id`. On reconnect the browser sends `Last-Event-ID` automatically, and the server replays from the Redis Stream — so a tunnel on the student's own commute does not lose their stop-arrival event.
+
+⚠️ Only **broadcast-class** events (`bus.position`, `bus.status`, `stop.reached`) carry resumable ids from `stream:events`. Per-user frames (`eta.update`, `notification`) are not in a shared stream and are **re-derived on connect** from Redis and the notification center, not replayed. Mixing the two would let a resumed client receive another student's scoped payloads.
+
+**Connection cap.** Three concurrent streams per user, tracked as **individual keys with a TTL** (`sse:conn:{userId}:{connId}`, 45 s, refreshed by the 15 s heartbeat), counted with a `SCAN` over the prefix — *not* as a plain SET. A SET with no expiry is a lockout waiting to happen: any gateway crash or `SIGKILL` leaves phantom connection ids behind, the user hits the cap against connections that no longer exist, and the only recovery is manual intervention in Redis. A key that dies when the heartbeat stops is self-healing.
 
 ---
 
@@ -446,6 +511,7 @@ Everything in `docker-compose.dev.yml`:
 | OSRM `car` | `osrm/osrm-backend` + Telangana extract | 5000 |
 | OSRM `foot` | `osrm/osrm-backend` + Telangana extract | 5001 |
 | Photon geocoder | `rtuszik/photon-docker` | 2322 |
+| Tile server (ADR-0005) | `maptiler/tileserver-gl` + Hyderabad `.mbtiles` | 8080 |
 | Mailpit (email capture) | `axllent/mailpit` | 8025 |
 
 `pnpm dev` brings up the stack, applies migrations, seeds routes/stops/users, and starts the simulator. **One command, no cloud account, no internet required.**
@@ -454,7 +520,7 @@ Everything in `docker-compose.dev.yml`:
 
 > **Do not migrate off Supabase.**
 
-Supabase Pro in `ap-south-1` (Mumbai) handles 300 concurrent users and 31 M rows/year without breathing hard. Migrating a working Postgres to RDS buys nothing here except operational burden and a lost weekend. **Spend the available funding on the things that actually constrain this product — tracker hardware and an OSRM box — not on infrastructure you would only be replacing to feel serious.**
+Supabase Pro in `ap-south-1` (Mumbai) handles 600 concurrent users and ~19 M rows/year without breathing hard — and note that under ADR-0002 almost none of those users are reading from it on the live path anyway. Migrating a working Postgres to RDS buys nothing here except operational burden and a lost weekend. **Spend the available funding on the things that actually constrain this product — tracker hardware and an OSRM box — not on infrastructure you would only be replacing to feel serious.**
 
 What you *add* for production, all in Mumbai to keep RTT under 30 ms:
 
@@ -463,13 +529,28 @@ What you *add* for production, all in Mumbai to keep RTT under 30 ms:
 | Postgres, Auth, Storage | **Supabase Pro**, `ap-south-1` | $25/mo |
 | Gateway + Engine | **Fly.io** `bom` region, 2 × shared-1x-1GB | ~$10/mo |
 | Redis | Fly Redis, or a Redis container beside the gateway | ~$5/mo |
-| OSRM + Photon | **Hetzner CPX31** or DigitalOcean BLR, 4 vCPU / 8 GB | ~$16/mo |
+| OSRM + Photon + **tile server** | **Hetzner CPX31** or DigitalOcean BLR, 4 vCPU / 8 GB | ~$16/mo |
+| Map tiles | self-hosted on the box above, cached at Cloudflare (ADR-0005) | $0 |
 | Web frontend | **Vercel** (`bom1`) or Cloudflare Pages | $0–20/mo |
 | CDN / TLS / WAF | Cloudflare | $0 |
-| SMS | MSG91, ~₹0.18 × ~2,000/mo | ~₹360/mo |
-| **Total** | | **≈ $60/mo (~₹5,200)** |
+| SMS | MSG91, ~₹0.18 × ~4,000/mo | ~₹720/mo |
+| **Total** | | **≈ $64/mo (~₹5,600) ⇒ ₹67,200/yr** |
 
-Comfortably inside the deck's ₹37,700/yr recurring envelope, with room for the M2M SIMs once hardware trackers land.
+### Reconciling this with the deck
+
+⚠️ **This does not fit the deck's ₹37,700/yr recurring envelope, and the plan should say so rather than quietly disagree with its own cost model.**
+
+The deck's ₹37,700 was M2M SIMs (₹22,500) + a single ₹1,200/mo VPS (₹14,400) + domain (₹800). That VPS line assumed one box running everything. The architecture above deliberately does not do that — separating ingestion from delivery, and the geo/tile box from the app box, is the decision the whole document rests on, and it costs about ₹53,000/yr more than one shared VPS.
+
+| Scenario | Recurring |
+|---|---|
+| Deck as written (25 buses, single VPS) | ₹37,700/yr |
+| **Pilot stage** (driver phones, no M2M SIMs) | **≈ ₹68,000/yr** |
+| **Full fleet** (30 buses, + M2M SIMs at ₹27,000/yr) | **≈ ₹95,000/yr** |
+
+Per student per year this moves from ₹18 to roughly **₹19–20** against the deck's 5,000-student denominator — which is to say, the honest number is still trivially defensible. **Present the higher figure.** A cost model that is quietly 2.5× optimistic is the kind of thing a funding committee finds on its own, and finding it costs more credibility than the ₹57,000 ever would have.
+
+**If the envelope is genuinely hard,** the collapsible line items are Vercel (→ Cloudflare Pages, $0) and Supabase Pro (→ self-hosted Postgres on the Hetzner box, −$25/mo, at the price of running your own backups and Auth). That lands near ₹42,000/yr. Do this only if required; §9's whole argument is that operational burden is the expensive resource here, not rupees.
 
 ⚠️ **Upstash caveat:** attractive for serverless Redis, but BullMQ's blocking commands bill per request and behave awkwardly on it. Prefer a plain Redis instance co-located with the workers.
 
@@ -480,7 +561,8 @@ Comfortably inside the deck's ₹37,700/yr recurring envelope, with room for the
 ## 10. Security
 
 - **RLS on every table**, denied by default. Students read only their own profile, subscriptions and notifications. Admin access is claim-based (`role` in the JWT), never a client-side check.
-- **Tracker authentication:** each device holds a per-device secret. Every ingest request is HMAC-SHA256 signed over `(device_id, timestamp, body)`; the server rejects skew over 5 minutes and replayed nonces. A leaked token lets an attacker spoof exactly one bus, and it can be rotated from the admin console.
+- **Tracker authentication:** each device holds a per-device secret. Every ingest request is HMAC-SHA256 signed over `(device_id, timestamp, body)`; the server rejects skew over 5 minutes and replayed nonces. The secret is **encrypted at rest and decryptable** (`pgcrypto`, key in the gateway's environment) — ⚠️ **it cannot be stored as a bcrypt hash**, because verifying an HMAC requires recomputing it with the same key, and a one-way hash makes that impossible. This is an easy and fatal mistake to make by analogy with password storage; the two cases are not alike. Secrets are rotatable from the admin console and are never returned to any client after issue.
+- **Spoofing is a *likely* event with a phone-based tracker, not an exceptional one.** The driver PWA must hold its secret in IndexedDB on a phone a driver carries home, so treat extraction as expected rather than as a breach. The consequence is bounded — one bus — but one falsified bus is enough to send students to a stop for a vehicle that is not coming. The mitigations are the plausibility gates in §5.3 doing double duty: reject implausible jumps, reject sustained off-route positions, reject a trip start for a bus already reporting from elsewhere, and surface to the admin console any device whose ping stream begins without a corresponding driver shift assignment. Rate-limit per device so a stolen secret cannot flood the stream.
 - **Rate limits:** ingest is capped per device (an unbounded loop must not flood the stream); auth endpoints are strictly limited; SSE is capped at 3 concurrent streams per user.
 - **Driver location is fleet data, not personal tracking.** Positions attach to a *trip*, and driver identity is linked only for the duration of the assigned shift. Raw positions are retained 90 days, then aggregated into segment-speed statistics and deleted. Say this out loud to drivers before the pilot — it is both the right thing to do and the difference between cooperation and sabotage.
 - **Student pinned locations** are stored coarsened (≈100 m precision is ample for a walking ETA) and are never exposed to admins or other students.
@@ -493,7 +575,7 @@ Comfortably inside the deck's ₹37,700/yr recurring envelope, with room for the
 
 | Failure | System response | What the student sees |
 |---|---|---|
-| Cellular dead zone | Tracker buffers locally, flushes on reconnect; backfill never re-triggers alerts | Amber marker, "last seen 2m ago" — never a frozen live dot |
+| Cellular dead zone | Tracker buffers locally, flushes on reconnect; backfill never re-triggers alerts | Amber at 3× cadence, "last seen 2m ago" — never a frozen live dot |
 | Known dead zone | Classified against learned polygons | "In a known dead zone near Uppal — usually clears in ~90 s" |
 | Tracker powers off | Presence sweeper → `ENDED` after 10 min | Bus leaves the live map rather than sitting stale |
 | Postgres down | Redis serves live state; persister buffers in the stream | **Live map unaffected.** History unavailable. |
@@ -503,6 +585,8 @@ Comfortably inside the deck's ₹37,700/yr recurring envelope, with room for the
 | Push service rejects | `410` prunes the subscription; T0/T1 fall back to SMS | Alert still arrives |
 | Every student opens at 4 p.m. | Stateless gateway scales horizontally; ingest is a separate path | GPS collection completely unaffected |
 | Bus goes off-route | 3 consecutive pings > 75 m off → `OFF_ROUTE`, ETAs suppressed | "Bus 14 is off its usual route" — no fabricated ETA |
+| Bus reverses on-route (U-turn, missed turn) | 4 sustained backward pings → global re-snap, sequence reset | Brief ETA gap, then correct — not a silently frozen offset |
+| Bus passes a stop without stopping | `skipped` event advances the sequence | Stop shown as passed; later stops keep notifying |
 | Malformed CSV | Two-phase upload rejects at preview | Nothing. No notification is sent. |
 
 **The governing rule:** *the app never fabricates a position or an ETA.* Every degraded state has a designed, honest, specific presentation. A stale timestamp shown plainly beats a confident wrong answer, every time.

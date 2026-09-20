@@ -14,6 +14,8 @@
 | **Route geometry** | None exists — capture it ourselves | Stage 1 grows a GPS-survey mode and an admin route editor. This is the largest single piece of net-new scope. |
 | **iOS push** | PWA install prompt + SMS fallback for T0/T1 | ⚠️ **DLT registration with MSG91 is a 1–2 week regulatory process. Start it on day one of Stage 0.** |
 | **Auth** | Roll number + password, seeded from a TD roster, claimed via phone OTP | Stage 4 depends on the Transport Department actually handing over a roster CSV with phone numbers. That is a people dependency — chase it during Stage 0. |
+| **Map tiles** | Self-hosted vector tiles (Planetiler → PMTiles/`tileserver-gl`), not a SaaS free tier | ARCHITECTURE ADR-0005. At 600 peak users this is ~4–6 M tile requests/month, roughly 50× any free tier. Adds one service in Stage 0 and keeps the tile line item at genuinely ₹0. |
+| **Concurrency target** | **600** peak concurrent students, 1,000-client headroom | Revised up from 300. The app is used at one moment by everyone at once; see ARCHITECTURE §1. Confirm real ridership with the TD during Stage 0 — it sizes the load tests and the production boxes. |
 
 ---
 
@@ -22,33 +24,46 @@
 ```
 Stage 0  Foundations
    │
-   ├──► Stage 1  Geo core + route capture ──┐
-   │                                        │
-   ├──► Stage 4  Identity + roster ─────────┤
-   │                                        │
-   └──► Stage 2  Ingestion ◄────────────────┘
-                     │
-                     ▼
-              Stage 3  Live delivery
-                     │
-        ┌────────────┴────────────┐
-        ▼                         ▼
-  Stage 5  Search + ETA     Stage 7  Admin console
-        │                         │
-        └────────────┬────────────┘
-                     ▼
-              Stage 6  Notification spine
-                     │
-                     ▼
-        Stage 8  Learning + observability + load
-                     │
-                     ▼
-        Stage 9  Production + hardware
+   ├────────────────────────┬──────────────────────────┐
+   ▼                        ▼                          │
+Stage 4  Identity        Stage 1  Geo core             │
+   + roster + RLS           + route capture            │
+   │                        │                          │
+   │                        └──► admin route editor ◄──┘
+   │                             (needs Stage 4 auth)
+   │                        │
+   └────────┬───────────────┘
+            ▼
+      Stage 2  Ingestion
+            │
+            ▼
+      Stage 3  Live delivery   (SSE is JWT-authenticated — needs Stage 4)
+            │
+   ┌────────┴────────┐
+   ▼                 ▼
+Stage 5           Stage 7
+Search + ETA      Admin console
+   │                 │
+   └────────┬────────┘
+            ▼
+      Stage 6  Notification spine
+            │
+            ▼
+      Stage 8  Learning + observability + load
+            │
+            ▼
+      Stage 9  Production + hardware
 ```
 
-Stages 1 and 4 are independent of each other and can run in parallel if there is more than one person. Everything after Stage 3 is sequential — **do not start Stage 6 before Stage 5**, because the notification spine is meaningless without per-student ETAs to trigger on.
+**Stage 4 moved ahead of Stages 1–3, and the reason is worth stating.** The original graph had identity running in parallel with live delivery, which does not survive contact with either stage: Stage 1 ships an admin route editor (an authenticated, role-gated surface), and Stage 3's SSE endpoint is authenticated per user and scoped per user — `GET /v1/stream` needs a JWT and the focus/subscription model needs a `user_id`. Building both against a stubbed identity means building them twice, and the second build is the one that discovers the RLS policies do not fit.
 
-Day estimates below assume one focused developer. Halve the wall-clock for a pair working the parallel branches.
+What *is* genuinely parallel: the pure-maths half of Stage 1 (`packages/geo`, the simulator, the trace→route pipeline) has no identity dependency at all and can run alongside Stage 4 from day one. Only the route *editor* has to wait. With two people, that is the split — one on geo and the simulator, one on identity and RLS.
+
+Ingestion (Stage 2) does **not** depend on identity — trackers authenticate with per-device HMAC secrets, not user sessions — but it does depend on Stage 1's geo core, and in practice it follows Stage 4 simply because Stage 4 finishes first.
+
+Everything after Stage 3 is sequential — **do not start Stage 6 before Stage 5**, because the notification spine is meaningless without per-student ETAs to trigger on.
+
+Day estimates below assume one focused developer and cover *build* time only; two stages additionally gate on real-world soak periods that run in parallel with later work (Stages 5 and 8, flagged in place). Halve the wall-clock for a pair working the parallel branches.
 
 ---
 
@@ -130,6 +145,10 @@ campus-bus/
 
 ---
 
+> **Stage numbers are identities, not an order.** They are referenced by vault entries (`M04-identity.md`), ADRs and runbooks, so they stay fixed. The *build* order is the dependency graph above: **0 → 4 → 1 → 2 → 3 → 5/7 → 6 → 8 → 9**, with the pure-geo half of Stage 1 running alongside Stage 4.
+
+---
+
 # Stage 0 — Foundations
 
 **~3 days. Nothing user-visible. Every later stage is faster or slower depending on how honestly this one is done.**
@@ -139,12 +158,14 @@ campus-bus/
 - pnpm workspace + Turborepo pipeline; TypeScript project references; `strict` with `noUncheckedIndexedAccess`.
 - ESLint + Prettier + `lint-staged`; Vitest configured at the root.
 - `docker-compose.dev.yml`: Supabase CLI stack, Redis 7, OSRM car + foot, Photon, Mailpit.
-- `infra/osrm/prepare.sh` — download the Telangana Geofabrik extract, run `osrm-extract` + `osrm-partition` + `osrm-customize` for both profiles. ⚠️ Preprocessing wants ~8 GB RAM; do it once and commit the artefacts to a release asset, not to git.
+- `infra/osrm/prepare.sh` — download the Telangana Geofabrik extract, clip it to a **Hyderabad bounding box with `osmium extract`**, then run `osrm-extract` + `osrm-partition` + `osrm-customize` for both profiles. ⚠️ Preprocessing wants ~8 GB RAM. Do it once and publish the artefacts, but note that **GitHub release assets are capped at 2 GiB per file** and full-Telangana MLD output for two profiles runs close to or past that — clipping to Hyderabad brings it to a few hundred MB and halves preprocessing time. If the artefacts still exceed the cap, use object storage (R2/S3) rather than splitting archives.
+- `infra/tiles/prepare.sh` — render the same Hyderabad extract to `.mbtiles`/PMTiles with Planetiler (ADR-0005) and serve it from `tileserver-gl` in the dev compose file. Same one-time cost, same artefact-publishing question.
 - `packages/config` — Zod-parsed environment, failing loudly at boot on a missing variable. One `.env.example` with every key documented.
-- `packages/contracts` — the first schemas: `Ping`, `PingBatch`, `SseEvent`.
+- `packages/contracts` — the first schemas: `Ping`, `PingBatch`, `SseEvent`. **`PingBatch` carries `cadence_s`** (the tracker's current reporting interval) from the very first version — the presence state machine derives its thresholds from it (ARCHITECTURE §5.7), and retrofitting a field into a contract that hardware trackers already speak is exactly the kind of change the adapter seam exists to avoid.
 - GitHub Actions: typecheck → lint → test → build, on every push.
 - `vault/` structure + `_TEMPLATE.md`; `docs/` skeleton.
-- **Start the MSG91 DLT registration.** It has a multi-week clock and blocks Stage 6.
+- **Start the MSG91 DLT registration.** It has a multi-week clock and blocks Stage 6. ⚠️ Register the **entity, the sender header, *and a content template per notification tier*** — DLT approves templates, not just senders, and discovering in Stage 6 that "Leave now — Bus {#var#} arrives in {#var#} min" was never submitted costs another week. Draft the T0/T1 template text now, even though the copy is not final.
+- **Ask the Transport Department for actual daily ridership.** It sizes the concurrency target, the load tests and the production boxes, and it is a five-minute question that is worth more than a day of estimating.
 - **Request the roster CSV** (roll no, name, admission year, phone) from the Transport Department. It blocks Stage 4.
 
 ### Components
@@ -157,7 +178,7 @@ campus-bus/
 
 ### Exit criteria
 
-- [ ] `pnpm dev` starts every container and both OSRM profiles answer a test route
+- [ ] `pnpm dev` starts every container, both OSRM profiles answer a test route, and the tile server returns a tile
 - [ ] `pnpm test` and `pnpm typecheck` pass in CI
 - [ ] A missing env var fails the boot with a readable message naming the variable
 - [ ] DLT registration submitted; roster request sent
@@ -175,16 +196,17 @@ campus-bus/
 
 - `haversine`, `projectPointOnSegment`, `buildCumulativeDistances`
 - `snapToRoute(ping, route, lastIndex)` with the forward-biased window and off-route detection (ARCHITECTURE §5.2)
-- `enforceMonotonicProgress(sPrev, sNew, dt)` (§5.3)
-- `detectCrossings(sPrev, sNow, routeStops, lastSeq)` (§5.4)
+- `enforceMonotonicProgress(sPrev, sNew, dt, backwardRun)` (§5.3) — **including the global re-snap recovery** after 4 sustained backward pings. Without it a U-turn freezes the offset for the rest of the trip with no error anywhere.
+- `detectCrossings(sPrev, sNow, routeStops, lastSeq)` (§5.4) — **including the `skipped` rule**, so one unconfirmed stop cannot block every stop after it.
 - `computeEta(s, targetOffset, speedModel, dwells)` returning `{p50, p90, confidence}` (§5.5)
 - `simplifyTrace` (Douglas–Peucker) for survey cleanup
 
 **Route capture — this is how you get geometry from nothing:**
 
 - **Survey mode** in `apps/driver`: drive the route once with 1 Hz dense capture, no snapping, raw trace straight to storage.
-- **Trace → route pipeline:** simplify → OSRM `/match` (map-matching to the road network) → canonical polyline → compute `cumulative_dist_m`.
-- **Admin route editor** (`apps/web/(admin)/routes`): MapLibre canvas showing the matched polyline, drag to correct, drop stops along the line, name and alias each stop. Publishing computes each stop's `cumulative_dist_m` by projection and freezes the route version.
+- **Trace → route pipeline:** simplify → OSRM `/match` (map-matching to the road network) → canonical polyline → compute `cumulative_dist_m` → assign `lineage_id` (new for a new corridor, inherited on a re-survey).
+  ⚠️ **OSRM's `/match` service caps coordinates per request** (`--max-matching-size`, 100 by default). A 1 Hz survey of a 45-minute route is ~2,700 points, so the pipeline must chunk with overlap — match in windows of ~80 with ~15 points of overlap, then stitch on the shared segments — or raise the limit on the self-hosted instance. Discovering this mid-Stage-1 with a real trace in hand is an afternoon lost to a one-line config.
+- **Admin route editor** (`apps/web/(admin)/routes`): MapLibre canvas showing the matched polyline, drag to correct, drop stops along the line, name and alias each stop. Publishing computes each stop's `cumulative_dist_m` by projection and freezes the route version. ⚠️ **This surface is role-gated and therefore depends on Stage 4** — build the geo package and the simulator first, and the editor after identity lands. It also warns (but does not block) when a route repeats a stop, since a circular route legitimately may.
 
 **Simulator (`apps/simulator`)** — the tool that makes every later stage testable:
 
@@ -221,8 +243,8 @@ Without it you can only test during the twice-daily windows when a real bus move
 
 **`apps/driver` tracker mode:**
 
-- `watchPosition({ enableHighAccuracy: true })`, throttled to 5 s moving / 30 s stationary
-- **Screen Wake Lock API** so the screen stays on while mounted and charging
+- `watchPosition({ enableHighAccuracy: true })`, throttled to 5 s moving / 15 s stationary, with the **current cadence sent in every batch** as `cadence_s`
+- **Screen Wake Lock API** so the screen stays on while mounted and charging. ⚠️ The lock is **released automatically whenever the document loses visibility** — a notification shade, an incoming call, a brief screen-off — and does *not* come back on its own. Re-acquire on every `visibilitychange` back to `visible`, or the tracker quietly dies the first time the driver's phone rings and nobody finds out until a student is standing at a stop.
 - IndexedDB ring buffer; every ping is written locally *before* the network is attempted
 - Batch POST every 5 s, or on reconnect flush up to 500 buffered pings with original `recorded_at`
 - Exponential backoff with jitter; `navigator.onLine` plus a heartbeat probe for genuine reachability
@@ -233,12 +255,13 @@ Without it you can only test during the twice-daily windows when a real bus move
 - `POST /v1/ingest` — HMAC-SHA256 over `(device_id, timestamp, body)`, 5-minute skew window, nonce replay cache in Redis
 - Zod validation; per-device rate limit
 - `is_backfill` marking when `ingested_at − recorded_at > 30 s`
+- HMAC verification against the **decrypted** per-device secret (`trackers.secret_enc`), accepting both old and new secrets during a 10-minute rotation overlap
 - `XADD stream:pings`, then respond. **No database write on this path.**
 
 **`apps/engine`:**
 
 - `geo.ts` — consumer group on `stream:pings`: snap → monotonic progress → EWMA speed → write `fleet:live`
-- `persister.ts` — separate consumer group, batches 200 rows or 2 s and `COPY`s into `positions`
+- `persister.ts` — separate consumer group, batches 200 rows or 2 s, `COPY`s into an **unlogged staging table**, then `INSERT … SELECT … ON CONFLICT DO NOTHING` into `positions`. ⚠️ `COPY` has no `ON CONFLICT`: a single duplicate row aborts the whole batch, and a tracker retrying after a timeout is an everyday event, not an anomaly. Copying straight into `positions` fails the replay exit criterion below on the first retry.
 
 ### Components
 
@@ -270,8 +293,8 @@ Walk around the block with the driver app open: positions land in Redis within ~
 
 ### Build
 
-- **SSE gateway:** `GET /v1/stream`, per-user subscription sets, `POST /v1/stream/focus` for bbox scoping, 15 s heartbeat comments, `Last-Event-ID` replay from `stream:events`, 3-connection cap per user.
-- **Presence sweeper** (`engine/presence.ts`): 5 s pass over `fleet:live` driving `LIVE → DEGRADED → DARK → ENDED`, writing `signal_outages` on every transition. Dead-zone *classification* lands here; dead-zone *learning* is Stage 8.
+- **SSE gateway:** `GET /v1/stream` (JWT-authenticated — hence the Stage 4 dependency), per-user subscription sets, `POST /v1/stream/focus` for bbox scoping, 15 s heartbeat comments, `Last-Event-ID` replay from `stream:events` for **broadcast-class events only** (per-user frames are re-derived on connect, never replayed), and a 3-connection cap enforced with **TTL keys refreshed by the heartbeat** rather than a SET that cannot forget a crashed gateway's connections.
+- **Presence sweeper** (`engine/presence.ts`): 5 s pass over `fleet:live` driving `LIVE → DEGRADED → DARK → ENDED`, writing `signal_outages` on every transition. Thresholds are **3× and 9× the tracker's reported cadence**, never absolute seconds (ARCHITECTURE §5.7) — a fixed 25 s DEGRADED line sits below the stationary cadence and would flash every healthy bus amber at every stop. Dead-zone *classification* lands here; dead-zone *learning* is Stage 8.
 - **Student live map:** MapLibre with the app theme, route polylines, bus markers coloured by presence state, **client-side dead-reckoning interpolation** (ARCHITECTURE §4), stop markers, a bus detail sheet.
 - **Honest degradation UI:** amber marker plus "last seen 34 s ago", red plus a timestamp for DARK, removal on ENDED. Designed states, not error toasts.
 - **Zustand fleet store** fed by SSE; reconnect with backoff and a visible connection indicator.
@@ -282,12 +305,13 @@ Walk around the block with the driver app open: positions land in Redis within ~
 
 ### Expect
 
-Open the app on a phone and a laptop side by side. Run the simulator. Buses glide smoothly across both screens within ~3 s of a ping. Kill the simulator's network for one bus: it turns amber at 25 s, red at 75 s, and disappears at 10 minutes — and at no point does it show a confident position it does not have.
+Open the app on a phone and a laptop side by side. Run the simulator. Buses glide smoothly across both screens within ~3 s of a ping. Kill the simulator's network for one bus: at a 5 s cadence it turns amber at 15 s, red at 45 s, and disappears at 10 minutes — and at no point does it show a confident position it does not have. Park a simulated bus so it drops to the 15 s idle cadence and confirm it **stays green**.
 
 ### Exit criteria
 
 - [ ] 30 buses live on the map with smooth interpolation, no visible jumps
-- [ ] All four presence states render correctly and transition on real timing
+- [ ] All four presence states render correctly and transition on real timing, at **both** the moving and the stationary cadence — a parked bus never goes amber
+- [ ] Killing the gateway with `SIGKILL` and restarting it does not lock any user out of reconnecting (TTL keys expire; no phantom connections)
 - [ ] Killing the network mid-stream reconnects and replays missed events without a page reload
 - [ ] p95 ping-to-pixel latency under 6 s, measured, not assumed
 - [ ] `vault/modules/M03-live-delivery.md` + `ADR-0001` (formalise the SSE decision)
@@ -296,17 +320,18 @@ Open the app on a phone and a laptop side by side. Run the simulator. Buses glid
 
 # Stage 4 — Identity and roster
 
-**~4 days. Can run in parallel with Stages 1–3.**
+**~4 days. Build this first, immediately after Stage 0** — the pure-geo half of Stage 1 (`packages/geo`, simulator, trace→route pipeline) runs alongside it, but the admin route editor (Stage 1) and the authenticated SSE stream (Stage 3) both depend on what lands here.
 
 ### Build
 
 - Supabase Auth with synthetic `<roll_no>@students.busmitra.internal` identities.
-- **Roster import:** TD uploads a CSV (roll no, name, admission year, phone, branch) → Zod-validated parse → diff preview → confirm → `roster_students` populated.
+- **Roster import:** TD uploads a CSV (roll no, name, admission year, phone, branch) → Zod-validated parse → diff preview → confirm → `roster_students` populated. **Rows without a phone number import successfully** and surface in an admin work queue; only *claiming* requires one. A `NOT NULL` phone column would block the import on precisely the incomplete roster the risk register expects.
 - **Claim flow:** roll number → OTP to the roster phone (MSG91; Mailpit/console in dev) → set password → `profiles` row created, phone marked verified.
 - Rate limiting and lockout on the claim endpoint; generic failure messages so the roster cannot be enumerated.
 - Role model and JWT claims; `is_admin()` helper; **RLS policies written and tested for every table that exists so far**.
-- `cohort` derivation from `admission_year` plus the annual promotion job.
-- Session handling, password recovery over SMS, and an account settings page.
+- `cohort` derivation from `admission_year` plus the annual promotion job. ⚠️ **Settle with the TD first what a cohort is** — a shift split (two departure waves) or an academic year. Two enum values are right for the former and cannot express the latter, and this is far cheaper to change before RLS policies and audience queries are built on it.
+- **Audit context plumbing:** `set_config('app.client_ip', …, true)` per request so the `audit_log` triggers can actually populate `ip` and `user_agent`. Triggers cannot see HTTP context on their own, and these columns will be silently `NULL` forever if this is skipped.
+- Session handling and an account settings page. **Password recovery runs over SMS**, which is a custom service-role flow (reuse the `claim_challenges` OTP machinery) — Supabase Auth's built-in reset is email-based and the synthetic `@students.busmitra.internal` addresses are non-routable by design, so the stock flow would send mail into a void.
 
 ### Components
 
@@ -372,12 +397,17 @@ Type "dilsuknagar" (misspelled) and get the right stop with live per-bus ETAs. P
 
 This is the stage where the product is proven or disproven. Instrument it: for every trip, log predicted vs. actual arrival at each stop. Target **MAE under 90 s at a 10-minute horizon**. If it misses that, tune the §5.5 blend weights — do not proceed to Stage 6 building alerts on an ETA you have not measured.
 
+⚠️ **This gate needs real buses, which is a scheduling dependency, not a coding task.** Ten instrumented trips means roughly a week of riding a real route with the driver app running — arranged with the Transport Department, on their timetable, weeks before the Stage 9 pilot formally begins. Two consequences worth planning for:
+
+- **Start the arrangement during Stage 4.** One cooperative driver on one route is enough, and the ask is small, but it has a lead time that Stage 5's ~6 build-days do not contain.
+- **The soak runs in parallel with Stage 7.** Build the admin console while trips accumulate; treat the MAE number as a gate on *starting Stage 6*, not on finishing Stage 5. The `segment_speeds` fallback ladder matters here — with ~2 trips a day, only the coarser rungs will have samples, and an MAE measured against a cold-start blend is the honest baseline to tune from.
+
 ### Exit criteria
 
 - [ ] Fuzzy search returns correct stops for 20 hand-written misspellings
 - [ ] Area search ("Dilsukhnagar") returns all stops within 2 km with serving buses
 - [ ] Walking ETA within 20% of a stopwatch-timed real walk
-- [ ] Bus ETA MAE < 90 s at a 10-minute horizon over ≥10 real trips
+- [ ] Bus ETA MAE < 90 s at a 10-minute horizon over ≥10 real trips *(soak gate — may complete during Stage 7; blocks the start of Stage 6)*
 - [ ] `vault/modules/M05-search-eta.md` + `benchmarks/eta-accuracy-v1.md`
 
 ---
@@ -398,6 +428,8 @@ This is the stage where the product is proven or disproven. Instrument it: for e
 **`engine/notify.ts` — the fan-out pipeline:**
 
 - Tier resolution → audience resolution → per-user filters → dedupe → channel selection → send → receipt (ARCHITECTURE §6.3)
+- **SMS falls back on the push POST's HTTP status, synchronously** — there is no waiting period, because Web Push has no delivery receipt and a `201` only means the push *service* accepted the message. Any "wait and see" window would spend the 10 s alert budget below to learn nothing.
+- Parent `notifications` row and all its `notification_recipients` rows written **in one transaction**, so a mid-fan-out crash cannot leave orphan parents behind
 - `dedupe_key` generation and the unique-constraint guard
 - Collapse-tag handling so 12 stop updates become one updating notification
 
@@ -409,8 +441,8 @@ This is the stage where the product is proven or disproven. Instrument it: for e
 | Trip starts | `starred` holders | **T3** + *Follow* / *Not today* actions |
 | Stop reached | active `trip_subscriptions` past that stop | **T3**, collapsed |
 | Leave now | the specific subscriber | **T1 URGENT** (+ SMS if no push) |
-| Signal lost (unknown zone) | today's riders | **T2** |
-| Signal lost (known zone) | today's riders | **T4**, in-app only |
+| Signal lost (unknown zone) | today's riders | **T2 IMPORTANT** |
+| Signal lost (known zone) | today's riders | **T4 AMBIENT**, in-app only |
 | Bus out of commission | everyone connected to that bus | **T0 CRITICAL** + SMS |
 
 **Notification actions** — this is what makes the flow work: *Follow* creates a `trip_subscription`; *Not today* sets `favourites.muted_until` to end-of-day **without unstarring**.
@@ -433,8 +465,9 @@ Notification correctness is where this product lives or dies:
 
 - Restart the notify worker mid-fan-out → **zero duplicates**
 - Flap a geofence boundary 20 times → **one** arrival notification
+- Drive a simulated bus past a stop without confirming arrival → the `skipped` rule fires, and **every subsequent stop still notifies**
 - Replay a full day of backfilled pings → **zero** retroactive alerts
-- 300 users, one T0 announcement → all delivered within 30 s
+- 600 users, one T0 announcement → all delivered within 30 s
 - Revoke push permission mid-session → T1 falls back to SMS, notification center still written
 - Kill switch active → T3 suppressed, T0 breaks through
 
@@ -456,7 +489,7 @@ Notification correctness is where this product lives or dies:
 
 - **Fleet management:** bus CRUD, tracker pairing and secret rotation, driver assignment, route assignment.
 - **Status control:** mark a bus out of commission → opens a ticket → fires **T0**; resolve → **T2** "back in service" on the *same* ticket card.
-- **Announcements:** rich composer, tier selector with a plain-language explanation of each tier's disruption, **audience selector (All / Juniors / Seniors / Route / Bus)**, live recipient-count preview, schedule-for-later, and a **confirmation dialog that states the exact number of phones that will buzz**.
+- **Announcements:** rich composer, tier selector with a plain-language explanation of each tier's disruption, **audience selector (All / Juniors / Seniors / Route / Bus / Custom)**, live recipient-count preview, schedule-for-later, and a **confirmation dialog that states the exact number of phones that will buzz**. A *Custom* audience writes an explicit `announcement_recipients` set — `announcements.audience_ref` is a single uuid and can only name one route or one bus.
 - **Event-day CSV upload:** drop file → parse → validate bus numbers and routes against the database → **rendered diff (added / changed / removed / unchanged)** → explicit confirm → apply → cohort-segmented T2 notification. `content_hash` blocks a duplicate re-upload from re-notifying.
 - **Ticket queue:** open/acknowledged/resolved, assignment, timeline, auto-opened tickets from sustained signal loss.
 - **Live fleet dashboard:** every bus's presence state, current trip, last ping age, today's ETA accuracy.
@@ -486,7 +519,9 @@ A TD staff member with no technical background can mark a bus out of commission,
 
 # Stage 8 — Learning, observability and load
 
-**~5 days. Turning a working system into an operable one.**
+**~5 days of build, plus a ~2-week observation window that runs in parallel.**
+
+⚠️ The dead-zone learning criteria below cannot be met inside five days — DBSCAN needs real outages to cluster, which means the system must have been running on real routes for roughly a fortnight. Build the clustering job, the OTel instrumentation, the dashboards and the load tests in the five days; let the dead-zone exit criteria complete during Stage 9's staged rollout, which is the first time real buses run continuously anyway. Verify the clustering itself against **simulator-injected dead zones**, which are deterministic and available immediately — the real-world criterion then confirms it rather than discovering it.
 
 ### Build
 
@@ -494,7 +529,7 @@ A TD staff member with no technical background can mark a bus out of commission,
 - **OpenTelemetry** end to end: one trace from ingest through snap, ETA, notify, to push receipt. Ship to Grafana Cloud. Sentry for errors on both web apps.
 - **Dashboards:** p50/p95 ping-to-pixel latency, ETA MAE by route and hour, notification delivery rate by channel, dead-zone frequency, active SSE connections, stream consumer lag.
 - **Alerting:** p95 latency > 8 s for 5 min; consumer lag > 1,000; push failure rate > 10%; any bus DARK > 15 min during a service window.
-- **k6 load tests:** 300 concurrent SSE clients + 30 ingest streams + a T0 broadcast at peak; 500-client headroom run.
+- **k6 load tests:** **600** concurrent SSE clients + 30 ingest streams + a T0 broadcast at peak; **1,000**-client headroom run. (Revised up from 300/500 — see the concurrency note in ARCHITECTURE §1. If the TD's ridership figures came back materially different in Stage 0, use those instead of these.)
 - **Chaos drills, each documented in a runbook:** kill Redis, kill Postgres, kill a worker mid-fan-out, saturate OSRM, revoke a VAPID key.
 - **Optional:** the on-bus auto-detect prompt (ARCHITECTURE §6.5).
 
@@ -504,13 +539,14 @@ A TD staff member with no technical background can mark a bus out of commission,
 
 ### Expect
 
-After two weeks of real running, the system knows where the dead zones are and explains them instead of alarming about them. Under a 300-client load test, p95 ping-to-pixel stays under 6 s and no notification is dropped. Every failure drill has a written runbook with a tested recovery procedure.
+After two weeks of real running, the system knows where the dead zones are and explains them instead of alarming about them. Under a 600-client load test, p95 ping-to-pixel stays under 6 s and no notification is dropped. Every failure drill has a written runbook with a tested recovery procedure.
 
 ### Exit criteria
 
-- [ ] ≥3 dead zones learned and classified correctly on real routes
-- [ ] 300-client k6 run: p95 < 6 s, zero dropped notifications, zero stream lag growth
-- [ ] 500-client headroom run degrades gracefully rather than collapsing
+- [ ] DBSCAN clustering verified against simulator-injected dead zones (deterministic, immediate)
+- [ ] ≥3 dead zones learned and classified correctly on real routes *(soak gate — completes during Stage 9)*
+- [ ] 600-client k6 run: p95 < 6 s, zero dropped notifications, zero stream lag growth
+- [ ] 1,000-client headroom run degrades gracefully rather than collapsing
 - [ ] All five chaos drills executed with a written, tested runbook each
 - [ ] `vault/modules/M08-observability.md` + `benchmarks/load-300-v1.md`
 
@@ -566,3 +602,7 @@ Every stage ends with the same three steps. They are part of the stage, not admi
 | iOS users never install the PWA | **High** | Medium | Install prompt with a plain explanation, SMS fallback for T0/T1, and a persistent in-app banner while alerts are undeliverable. |
 | Route changes mid-semester invalidate geometry | Medium | Medium | Route versioning (never edit in place) + the admin editor makes a re-survey a one-hour job. |
 | Scope creep into a native app | Medium | Medium | The brief says web app. Hold the line; the only native surface ever considered is the optional *driver* wrapper. |
+| **Real concurrency is far above the 600 target** | Medium | High | The app is used by everyone in the same five minutes, so peak concurrency tracks ridership almost 1:1. Ask the TD for real numbers in Stage 0 and re-derive; the cost is a spreadsheet, the cost of finding out in Stage 8 is a re-architecture of the fan-out. |
+| **Recurring cost is ~2.5× the deck's ₹37,700/yr envelope** | **Certain** | Medium | Already true, not a risk to avoid — the separated architecture costs ~₹67,000/yr at pilot and ~₹95,000/yr at full fleet. Present the corrected figure early (ARCHITECTURE §9). Per student it is still ₹19–20/yr. Collapsible if required: Cloudflare Pages instead of Vercel, self-hosted Postgres instead of Supabase Pro. |
+| **No real bus available for the Stage 5 ETA gate** | Medium | High | The 10-trip MAE gate needs a cooperative driver on one route for about a week. Arrange it during Stage 4, not Stage 5. Fallback: gate on simulator-replayed *recorded* traces from the Stage 1 survey and re-validate at the Stage 9 pilot, accepting that the number is provisional. |
+| **ODbL share-alike on surveyed route geometry** | Low | Medium | Route polylines are produced by map-matching GPS traces against OSM, which plausibly makes `routes`/`stops` a Derivative Database under ODbL and carries share-alike obligations that sit awkwardly with the README's current all-rights-reserved posture. Settle it before the Stage 9 public release: either publish the route data under ODbL (costless — it is campus bus routes, not a moat) or keep the survey traces unmatched and derive geometry independently. Worth ten minutes of reading now rather than a licensing question at launch. |
