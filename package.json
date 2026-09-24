@@ -1,0 +1,52 @@
+{
+  "name": "bus-mitra",
+  "private": true,
+  "packageManager": "pnpm@10.34.5",
+  "engines": {
+    "node": ">=22"
+  },
+  "type": "module",
+  "scripts": {
+    "dev": "bash infra/scripts/dev.sh",
+    "dev:down": "bash infra/scripts/dev-down.sh",
+    "smoke": "bash infra/scripts/smoke.sh",
+    "env:check": "pnpm --filter @busmitra/config exec node --experimental-strip-types src/check.ts",
+    "build": "turbo run build",
+    "typecheck": "turbo run typecheck",
+    "lint": "turbo run lint",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "coverage": "vitest run --coverage",
+    "format": "prettier --write .",
+    "format:check": "prettier --check .",
+    "prepare": "simple-git-hooks",
+    "sim": "pnpm --filter @busmitra/simulator sim",
+    "tracker": "pnpm --filter @busmitra/gateway tracker"
+  },
+  "simple-git-hooks": {
+    "pre-commit": "pnpm exec lint-staged"
+  },
+  "lint-staged": {
+    "*.{ts,tsx,js,mjs,cjs}": [
+      "eslint --fix",
+      "prettier --write"
+    ],
+    "*.{json,md,yml,yaml,css}": [
+      "prettier --write"
+    ]
+  },
+  "devDependencies": {
+    "@eslint/js": "^10.0.1",
+    "@types/node": "^22.19.0",
+    "@vitest/coverage-v8": "^5.0.1",
+    "eslint": "^10.11.0",
+    "eslint-config-prettier": "^10.1.8",
+    "lint-staged": "^17.5.1",
+    "prettier": "^3.9.8",
+    "simple-git-hooks": "^2.14.0",
+    "turbo": "^2.11.2",
+    "typescript": "~5.9.3",
+    "typescript-eslint": "^8.70.1",
+    "vitest": "^5.0.1"
+  }
+}

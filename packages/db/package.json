@@ -1,0 +1,26 @@
+{
+  "name": "@busmitra/db",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts",
+    "./testing": "./src/testing/index.ts"
+  },
+  "scripts": {
+    "typecheck": "tsc -p tsconfig.json",
+    "lint": "eslint src"
+  },
+  "dependencies": {
+    "@busmitra/contracts": "workspace:*",
+    "pg": "^8.23.0",
+    "pg-copy-streams": "^7.0.0"
+  },
+  "devDependencies": {
+    "@busmitra/geo": "workspace:*",
+    "@electric-sql/pglite": "0.5.8",
+    "@electric-sql/pglite-postgis": "0.2.8",
+    "@types/pg": "^8.23.1",
+    "@types/pg-copy-streams": "^1.2.5"
+  }
+}

@@ -1,0 +1,24 @@
+node_modules/
+dist/
+.next/
+.next-dev/
+coverage/
+.turbo/
+.vite/
+*.log
+.env
+.env.*
+!.env.example
+.DS_Store
+# OSRM / tile artefacts are hundreds of MB — published separately, never committed
+infra/osrm/data/
+infra/tiles/data/
+# Supabase CLI local state
+infra/supabase/.branches/
+infra/supabase/.temp/
+# mirrored from packages/db/migrations by infra/scripts/dev.sh — not a second source of truth
+infra/supabase/migrations/
+# Real roster CSVs must never be committed (Read_this_first §7)
+*roster*.csv
+!tests/fixtures/**/*.csv
+*.tsbuildinfo

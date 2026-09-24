@@ -1,0 +1,12 @@
+pnpm-lock.yaml
+**/dist
+**/.next
+**/.next-dev
+**/coverage
+infra/osrm/data
+infra/tiles/data
+*.pptx
+# Prose docs are hand-formatted (tables, aligned code blocks)
+*.md
+infra/supabase/config.toml
+next-env.d.ts

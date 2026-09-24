@@ -7,8 +7,8 @@ Real-time map, per-stop ETAs, and arrival alerts that tell you when to leave —
 
 Department of Information Technology · Chaitanya Bharathi Institute of Technology
 
-[![Status](https://img.shields.io/badge/status-design%20complete-blue)](docs/BUILD_PLAN.md)
-[![Stage](https://img.shields.io/badge/stage-0%20of%209-lightgrey)](#roadmap)
+[![Status](https://img.shields.io/badge/status-in%20development-yellow)](tracker.md)
+[![Stage](https://img.shields.io/badge/stages%200%2C%204%2C%201%2C%202%2C%203%2C%205%2C%207%2C%206-built-yellow)](#roadmap)
 [![License](https://img.shields.io/badge/license-TBD-lightgrey)](#license)
 
 [![TypeScript](https://img.shields.io/badge/TypeScript-3178C6?logo=typescript&logoColor=white)](docs/ARCHITECTURE.md#2-tech-stack)
@@ -21,11 +21,13 @@ Department of Information Technology · Chaitanya Bharathi Institute of Technolo
 </div>
 
 ---
-<!-- 
 > [!IMPORTANT]
-> **Project status: design complete, implementation not started.**
-> The architecture, data model and staged build plan in `docs/` are finalised. No application code exists yet.
-> The **Getting Started** section below describes the intended developer experience and becomes real at the end of Stage 0. This README is updated at the end of every stage to reflect only what actually works. -->
+> **Project status: Stages 0, 4, 1, 2, 3, 5, 7 and 6 are built and tested. Students can watch the fleet live, search any stop, follow a bus with a live ETA and a "leave in" countdown, and get alerts on their phone. The Transport Department has a working console.**
+> Working today: everything below the student UI (identity with RLS, route capture and editing, a fleet simulator, signed ingest with offline buffering); the **live map** — every running bus over Server-Sent Events, gliding between fixes, amber and red when a bus stops reporting, and gone ten minutes later; **stop search** that forgives misspellings and finds stops near a locality; a **home pin** stored at ~100 m; **per-stop ETA ranges** with a confidence dot; and a **leave-now** evaluator that emits one event per student (delivery is Stage 6).
+> Verified on 2026-09-23 against the full local stack in a real browser: 30 buses on the map with a p95 of 4.0 s from GPS fix to pixel; all four presence states on time at both cadences with zero false alarms; a cut network and a SIGKILLed gateway both recover without a reload.
+> **TD console (2026-09-24):** fleet, drivers and QR tracker pairing; out of commission → ticket → back in service; a ticket queue with auto-opened signal-loss tickets; announcements with a live recipient count; event-day bus lists from a CSV with a rendered diff; a live fleet dashboard; an audit log. Every send states the number of students it will reach, and the gateway refuses it if that number has changed. Verified in a real browser.
+> **Alerts (2026-09-24):** web push to installed and browser PWAs (event → push in the browser p95 2.4 s through Google's push service), SMS fallback for critical and urgent alerts, a notification center that records everything, *Follow* / *Not today*, favourites, and a kill switch, quiet hours and alert levels. Every adversarial test in the build plan passes: no duplicates after a crash, one alert for a flapping stop, none for replayed history.
+> Not yet: push on a real iPhone and the phone-side latency (need a phone), real SMS (needs DLT approval), a usability session with a TD member. **Stage 6 was built ahead of its gate:** leave-now alerts should not be switched on for real students until the ETA is measured on real buses. **ETA accuracy on real buses is not measured yet:** that needs ten real trips, and it gates the alerts. **Also still open:** a GitHub CI run, real SMS (DLT), one real surveyed route, and a stopwatch-timed walk. See [`tracker.md`](tracker.md).
 
 ---
 
@@ -39,10 +41,12 @@ Department of Information Technology · Chaitanya Bharathi Institute of Technolo
 - [Architecture at a glance](#architecture-at-a-glance)
 - [Getting started](#getting-started)
   - [Prerequisites](#prerequisites)
-  - [Setup](#setup)
-  - [Running a simulated fleet](#running-a-simulated-fleet)
+  - [Without Docker: tests only](#without-docker-tests-only)
+  - [Full local stack](#full-local-stack)
+  - [Environment variables](#environment-variables)
   - [Useful commands](#useful-commands)
 - [Project structure](#project-structure)
+- [Roadmap](#roadmap)
 - [Documentation](#documentation)
 - [Contributing](#contributing)
 - [Acknowledgments](#acknowledgments)
@@ -62,21 +66,21 @@ Bus tracking is a solved problem — for regulators and for city transit. It is 
 
 | | |
 |---|---|
-| **Live map** | Every running bus, updating continuously, with smooth motion between GPS pings. |
-| **Search any stop** | Type `Dilsukhnagar` — or misspell it — and see every bus serving that area with a live ETA. |
-| **Leave-now alerts** | Pin where you start from. Get one urgent notification when the bus is closer to your stop than you are. |
-| **Favourites** | One main bus for urgent alerts, plus any number of starred buses for lighter ones. |
-| **Notification center** | Tiered history of every announcement, alert and service ticket. |
-| **Kill switch** | One tap once you're aboard silences everything for three hours. |
+| **Live map** ✅ | Every running bus, updating continuously, with smooth motion between GPS pings, and an honest "last seen" when a bus stops reporting. |
+| **Search any stop** ✅ | Type `Dilsukhnagar` — or misspell it, `dilsuknagar`, `kothi` — and see every bus serving that area with a live ETA range. |
+| **Leave-now alerts** 🟡 | Pin where you start from. The app counts down "leave in N min" and sends one urgent alert when it is time — built and tested; to be switched on once ETA accuracy is proven on real buses. |
+| **Favourites** ✅ | One main bus for urgent alerts, plus any number of starred buses for lighter ones — with *Follow* / *Not today* right on the notification. |
+| **Notification center** ✅ | Tiered history of every announcement, alert and service ticket, written even when a push or SMS fails. |
+| **Kill switch** ✅ | One tap once you're aboard silences everything for three hours; critical alerts still come through. |
 
 **For the Transport Department**
 
 | | |
 |---|---|
-| **Fleet console** | Live status of every bus, tracker health, last-ping age. |
-| **Announcements** | Tiered broadcasts to everyone, to first-years, to seniors, or to one route — with a recipient count shown before anything is sent. |
-| **Event-day lists** | Upload a CSV of buses running today; separate lists for juniors and seniors. Two-phase with a diff preview, so no malformed file ever reaches a student's phone. |
-| **Service tickets** | Mark a bus out of commission and it raises a tracked, acknowledgeable alert that students can follow to resolution. |
+| **Fleet console** ✅ | Live status of every bus, last-ping age, today's ETA accuracy; buses, drivers, QR pairing of tracker phones. |
+| **Announcements** ✅ | Tiered broadcasts to everyone, to first-years, to seniors, or to one route — with a recipient count shown before anything is sent. |
+| **Event-day lists** ✅ | Upload a CSV of buses running today; separate lists for juniors and seniors. Two-phase with a diff preview, so no malformed file ever reaches a student's phone. |
+| **Service tickets** ✅ | Mark a bus out of commission and it raises a tracked ticket and a critical alert (push + SMS); resolving it puts the bus back in service and tells the same students. |
 
 ## Design principles
 
@@ -137,96 +141,130 @@ Full topology, latency budget and failure-mode table: [`docs/ARCHITECTURE.md`](d
 
 ## Getting started
 
-> Available from the end of **Stage 0**. Documented here as the target developer experience.
-
 ### Prerequisites
 
-- Node.js 22+ and pnpm 9+
-- Docker Desktop
-- Supabase CLI
-- ~10 GB free disk and ~8 GB RAM (one-time OSRM and vector-tile preprocessing of the Hyderabad OSM extract)
+- Node.js 22+ and pnpm 10 (`npm i -g pnpm`)
+- For the full local stack only: Docker (Desktop, OrbStack, or `brew install colima docker docker-compose` then `colima start --memory 8`), `osmium-tool`, python3 and ~6 GB free disk. Preprocessing needs well under 1 GB of RAM (measured). The Supabase CLI runs via `npx`, so no separate install is needed.
 
-### Setup
+### Without Docker: tests only
 
 ```bash
-git clone <repo-url> campus-bus
-cd campus-bus
 pnpm install
-
-cp .env.example .env.local        # every variable is documented inline
-
-pnpm osrm:prepare                 # one-time; downloads and preprocesses the OSM extract
-pnpm tiles:prepare                 # one-time; renders vector tiles from the same extract
-pnpm dev                          # brings up the full local stack
+pnpm typecheck && pnpm lint && pnpm test   # 411 tests; database suites run on in-process Postgres (PGlite),
+                                           # Redis-backed suites are skipped unless a Redis is reachable
 ```
 
-`pnpm dev` starts Supabase (Postgres + PostGIS, Auth, Storage), Redis, both OSRM profiles, Photon, the vector tile server and Mailpit; applies migrations; seeds routes, stops and test users; and launches the gateway, engine, web app and driver app.
+### Full local stack
+
+```bash
+pnpm install
+cp .env.example .env              # every variable is documented inline
+infra/osrm/prepare.sh             # one-time (~1 min + a 99 MB download): Telangana extract → Hyderabad clip → car + foot graphs
+infra/tiles/prepare.sh            # one-time (~30 s): Hyderabad vector tiles (--full also fetches ~1.4 GB of ocean/low-zoom data)
+pnpm dev                          # validates .env, starts Supabase + Redis + OSRM ×2 + Photon + tiles + Mailpit,
+                                  # applies migrations + dev seed, smoke-tests routing and tiles, runs gateway,
+                                  # engine, web and the driver app
+```
+
+Then open <http://localhost:3000/claim> and claim roll `160125737001`. With `SMS_PROVIDER=console` the OTP appears in the gateway log. To get an admin, claim `TDADMIN01` and run the promotion SQL in [`infra/supabase/seed.sql`](infra/supabase/seed.sql).
 
 **No cloud account is required for local development or testing.**
 
-### Running a simulated fleet
+#### Buses on the map, without a bus
 
 ```bash
-pnpm simulate --buses 30 --noise 8 --deadzones 2
+pnpm sim seed                              # 8 routes on real Hyderabad roads, through the real
+                                           # survey → map-match → publish pipeline (~3 s)
+pnpm sim run --buses 30 --minutes 60       # 30 buses in real time: GPS noise, dead zones,
+                                           # duplicate and out-of-order batches, then a verdict
+pnpm sim run --buses 3 --minutes 5 --airplane 2:1:3   # bus 2 offline for two minutes
 ```
 
-Drives thirty synthetic buses along real published routes with realistic GPS noise and injected dead zones. This is how every stage after Stage 1 is tested — waiting for a real bus to move is not a development loop.
+The run ends by checking itself: every fix it sent is in `positions` exactly once, the ones
+flushed late are flagged `is_backfill`, and no bus's live entry ever moved backwards in time.
+Open <http://localhost:3000> signed in while it runs to watch the buses; `pnpm sim watch --cut SIM-02`
+judges every presence transition, and `pnpm sim eta-report` prints ETA accuracy per horizon.
+Run one simulator fleet at a time: each run re-provisions the same `SIM-*` trackers.
+
+#### Driving a real phone
+
+```bash
+pnpm tracker provision --bus 14            # prints a pairing link, once
+pnpm --filter @busmitra/driver dev         # the driver PWA on :5173
+```
+
+Open the pairing link on the phone (set `VITE_GATEWAY_URL` to the laptop's LAN address first),
+pick a route, press **START TRIP**. Survey mode records a 1 Hz trace for a new route; the
+Transport Department matches and publishes it under Admin → Routes.
+
+### Environment variables
+
+Every variable is listed and explained in [`.env.example`](.env.example), with its purpose, where to obtain it, and whether it is secret. The gateway and `pnpm env:check` refuse to start while any variable is missing or malformed, and they list each one by name. The groups are Supabase, Redis, geo services (OSRM car/foot, Photon, tiles), SMS (`console` in dev, `msg91` after DLT approval), gateway keys (`CLAIM_DECOY_KEY`, `TRACKER_SECRET_KEY`), and the `NEXT_PUBLIC_*` values for the web app.
 
 ### Useful commands
 
 | Command | Does |
 |---|---|
-| `pnpm dev` | Full local stack |
-| `pnpm test` | Unit tests (Vitest) |
-| `pnpm test:e2e` | End-to-end tests (Playwright) |
-| `pnpm test:load` | Load tests (k6) |
-| `pnpm db:migrate` | Apply migrations |
-| `pnpm db:seed` | Reseed local data |
-| `pnpm simulate` | Synthetic fleet |
+| `pnpm dev` / `pnpm dev:down` | Start / stop the full local stack |
+| `pnpm env:check` | Validate `.env`; names every missing or malformed variable |
+| `pnpm smoke` | Check both OSRM profiles route and the tile server serves a tile |
+| `pnpm test` | Unit + database tests (Vitest, PGlite; Redis suites need a Redis) |
+| `pnpm sim seed` · `pnpm sim run` | Seed dev routes · drive simulated buses through the real gateway |
+| `pnpm sim watch` · `pnpm sim eta-report` | Judge presence transitions of a live run · ETA accuracy from `eta_predictions` |
+| `node --experimental-strip-types tests/e2e/{live-map,resilience,stage5}.ts` | Real-browser checks (headless Chrome) against the running stack |
+| `pnpm tracker provision --bus 14` · `pnpm tracker rotate --device …` | Pair a driver phone · rotate its secret |
+| `TEST_DATABASE_URL=postgresql://postgres:postgres@127.0.0.1:54322/postgres pnpm vitest run packages/db apps` | The database suites on the real Supabase Postgres 15 |
+| `pnpm typecheck` · `pnpm lint` · `pnpm format` | Static checks |
+| `pnpm build` | Production builds (needs the `NEXT_PUBLIC_*` variables) |
 
 ## Project structure
 
+Entries marked ✅ exist today. The rest are planned (see `docs/BUILD_PLAN.md`).
+
 ```
 apps/
-  web/          Next.js — student PWA + TD admin console
-  driver/       Vite PWA — GPS tracker + route survey
-  gateway/      Fastify — ingest, SSE, REST
-  engine/       BullMQ workers — geo, ETA, geofence, presence, notify
-  simulator/    Synthetic fleet for development and load testing
+  web/          ✅ Next.js 15 — live map, stop search, stop page, hero ETA + timeline, home pin,
+                   sign-in/claim/recovery, settings; TD console: live fleet, fleet + pairing,
+                   tickets, announcements, event-day CSV, roster, routes, stops, audit log
+  driver/       ✅ Vite PWA — GPS tracker with offline buffering, and route survey mode
+  gateway/      ✅ Fastify 5 — auth, admin APIs, signed tracker ingest, SSE stream, search, /v1/me
+  engine/       ✅ workers — roster, survey matching, geo, persister, presence, stop events,
+                   per-stop ETA, leave-now, event-day lists + scheduled trips, signal-loss
+                   tickets, scheduled announcements
+  simulator/    ✅ Synthetic fleet: seeds routes, drives buses, verifies the run
 packages/
-  contracts/    Zod schemas shared across every app
-  db/           Drizzle schema, migrations, RLS policies
-  geo/          Snapping, route progress, ETA — pure, heavily tested
-  notify/       Tiering, templates, push + SMS adapters
-  redis/        Typed key registry and stream helpers
-  config/       Environment parsing and shared constants
-  ui/           Shared components and design tokens
-infra/          Docker, OSRM, Supabase configuration
-docs/           Architecture, schema, build plan
-vault/          Engineering log — modules, ADRs, runbooks, benchmarks
-tests/          E2E, load, and recorded GPS fixtures
+  contracts/    ✅ Zod schemas — ping, SSE, tracker API, roster + event-day CSV, auth, route
+                   editor, admin console, notify events
+  db/           ✅ SQL migrations, RLS policies, PGlite + Postgres 15 test harness
+  geo/          ✅ Snapping, progress, stop crossings, ETA — pure, 100% line coverage
+  notify/       ✅ Tiering and per-user filters, Web Push (VAPID), SMS (console, MSG91) with receipts
+  redis/        ✅ Typed key registry, fleet state, stream helpers
+  config/       ✅ Environment parsing and shared constants
+  ui/           ✅ Design tokens (both themes) and presence styles
+infra/          ✅ Docker compose, OSRM + tile prep, Supabase config, dev scripts
+docs/           ✅ Architecture, schema, build plan, outreach drafts
+vault/          ✅ Engineering log — modules, ADRs, runbooks, benchmarks
+tests/        ✅ e2e (headless-Chrome harnesses), recorded GPS fixtures; load tests in Stage 8
 ```
 
-<!-- ## Roadmap
+## Roadmap
 
-Ten stages, each independently demonstrable. Full detail, including exit criteria and a risk register, in [`docs/BUILD_PLAN.md`](docs/BUILD_PLAN.md).
+Ten stages, each independently demonstrable, built in the order **0 → 4 → 1 → 2 → 3 → 5/7 → 6 → 8 → 9**. Full detail, exit criteria and the risk register are in [`docs/BUILD_PLAN.md`](docs/BUILD_PLAN.md). Live status is in [`tracker.md`](tracker.md).
 
-| Stage | Delivers | Status |
-|---|---|---|
-| **0** | Monorepo, local Docker stack, CI, contracts | ⬜ Not started |
-| **1** | Geo core, route survey and editor, fleet simulator | ⬜ Not started |
-| **2** | Driver tracker, ingest pipeline, offline buffering | ⬜ Not started |
-| **3** | SSE delivery, live map, dead-zone presence states | ⬜ Not started |
-| **4** | Roster import, roll-number claim flow, RLS | ⬜ Not started |
-| **5** | Stop search, location pinning, per-student ETA | ⬜ Not started |
-| **6** | Push + SMS, tiering, notification center, kill switch | ⬜ Not started |
-| **7** | Admin console, announcements, CSV lists, tickets | ⬜ Not started |
-| **8** | Dead-zone learning, observability, load testing | ⬜ Not started |
-| **9** | Production deployment, hardware trackers, pilot | ⬜ Not started |
+| Order | Stage | Delivers | Status |
+|---|---|---|---|
+| 1 | **0** | Monorepo, local Docker stack, CI, contracts | 🟡 Built and run; GitHub CI run and DLT/roster requests pending |
+| 2 | **4** | Roster import, roll-number claim flow, RLS | 🟡 Built, run live on Supabase; real SMS (DLT) pending |
+| 3 | **1** | Geo core, route survey and editor, fleet simulator | 🟡 Built and tested; one real route still to be surveyed |
+| 4 | **2** | Driver tracker, ingest pipeline, offline buffering | 🟡 Built and tested; airplane test on a real phone pending |
+| 5 | **3** | SSE delivery, live map, dead-zone presence states | 🟢 Complete |
+| 6 | **5** | Stop search, location pinning, per-student ETA | 🟡 Built; stopwatch walk and the real-bus ETA soak pending (the soak gates Stage 6) |
+| 6 | **7** | Admin console, announcements, CSV lists, tickets | 🟡 Built and browser-tested; TD usability session pending |
+| 7 | **6** | Push + SMS, tiering, notification center, kill switch | 🟡 Built ahead of its gate; iPhone, phone latency, real SMS and the Stage 5 soak pending |
+| 8 | **8** | Dead-zone learning, observability, load testing | ⬜ Not started |
+| 9 | **9** | Production deployment, hardware trackers, pilot | ⬜ Not started |
 
 Rollout follows the project deck: **3 buses → measure ETA accuracy for two weeks → 10 buses → full fleet.** No fleet-wide hardware spend until the pilot proves accuracy on real routes.
-
-See also: [open issues](../../issues) and [pull requests](../../pulls) for work in progress. -->
 
 ## Documentation
 

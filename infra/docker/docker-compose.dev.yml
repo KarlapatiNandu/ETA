@@ -1,0 +1,96 @@
+# Local stack (ARCHITECTURE §9). Supabase runs separately via the Supabase CLI
+# (`infra/scripts/dev.sh` starts both) because the CLI owns its own compose project.
+name: busmitra
+
+services:
+  redis:
+    image: redis:7-alpine
+    # AOF everysec — ADR-0002: losing ≤1 s of live state on a hard crash is acceptable.
+    command: ["redis-server", "--appendonly", "yes", "--appendfsync", "everysec"]
+    ports: ["6379:6379"]
+    volumes: [redis-data:/data]
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 2s
+      retries: 30
+
+  osrm-car:
+    image: ghcr.io/project-osrm/osrm-backend:v5.27.1
+    command: ["osrm-routed", "--algorithm", "mld", "/data/hyderabad.osrm"]
+    ports: ["5000:5000"]
+    volumes: ["../osrm/data/car:/data:ro"]
+    # no curl in the image; a TCP connect is enough — osrm-routed listens only once the graph is loaded
+    healthcheck:
+      test: ["CMD", "bash", "-c", "exec 3<>/dev/tcp/127.0.0.1/5000"]
+      interval: 2s
+      retries: 30
+
+  osrm-foot:
+    image: ghcr.io/project-osrm/osrm-backend:v5.27.1
+    command: ["osrm-routed", "--algorithm", "mld", "/data/hyderabad.osrm"]
+    ports: ["5001:5000"]
+    volumes: ["../osrm/data/foot:/data:ro"]
+    # no curl in the image; a TCP connect is enough — osrm-routed listens only once the graph is loaded
+    healthcheck:
+      test: ["CMD", "bash", "-c", "exec 3<>/dev/tcp/127.0.0.1/5000"]
+      interval: 2s
+      retries: 30
+
+  photon:
+    image: rtuszik/photon-docker:latest
+    # Downloads the India search index on first start — then fully offline.
+    # REGION, not COUNTRY_CODE: an unrecognised variable silently means the whole PLANET
+    # (95 GB extracted, 153 GB temp) — the container then exits 75 "insufficient disk space".
+    environment:
+      REGION: india
+      UPDATE_STRATEGY: DISABLED
+    ports: ["2322:2322"]
+    volumes: [photon-data:/photon/data]
+
+  tiles:
+    image: maptiler/tileserver-gl:v5.3.1
+    command: ["--file", "/data/hyderabad.mbtiles", "--port", "8080"]
+    ports: ["8080:8080"]
+    volumes: ["../tiles/data:/data:ro"]
+    healthcheck:
+      test:
+        [
+          "CMD",
+          "node",
+          "-e",
+          "fetch('http://127.0.0.1:8080/health').then(r=>process.exit(r.ok?0:1),()=>process.exit(1))",
+        ]
+      interval: 3s
+      retries: 40
+
+  mailpit:
+    image: axllent/mailpit:latest
+    ports: ["8025:8025", "1025:1025"]
+
+  # Stage 8 — local Grafana + Prometheus + Tempo + an OTLP collector in one container. Opt-in:
+  #   docker compose -f infra/docker/docker-compose.dev.yml --profile observability up -d lgtm
+  # then set OTEL_EXPORTER_OTLP_ENDPOINT=http://localhost:4318 for the gateway and engine.
+  # Grafana: http://localhost:3001 (admin / admin). Production uses Grafana Cloud instead.
+  lgtm:
+    image: grafana/otel-lgtm:0.33.1
+    profiles: [observability]
+    ports: ["3001:3000", "4317:4317", "4318:4318"]
+    extra_hosts: ["host.docker.internal:host-gateway"]
+    environment:
+      BUSMITRA_PROM_UID: prometheus
+      # the local Supabase Postgres, as the read-only metrics role (infra/scripts/observability.sh)
+      BUSMITRA_METRICS_DB_HOST: host.docker.internal:54322
+      BUSMITRA_METRICS_DB_NAME: postgres
+      BUSMITRA_METRICS_DB_SSLMODE: disable
+      BUSMITRA_METRICS_DB_PASSWORD: metrics-local-only
+    volumes:
+      - ../grafana/provisioning/datasources/busmitra.yaml:/otel-lgtm/grafana/conf/provisioning/datasources/busmitra.yaml:ro
+      - ../grafana/provisioning/dashboards/busmitra.yaml:/otel-lgtm/grafana/conf/provisioning/dashboards/busmitra.yaml:ro
+      - ../grafana/provisioning/alerting/busmitra.yaml:/otel-lgtm/grafana/conf/provisioning/alerting/busmitra.yaml:ro
+      - ../grafana/dashboards:/busmitra/dashboards:ro
+      - lgtm-data:/data
+
+volumes:
+  redis-data:
+  photon-data:
+  lgtm-data:

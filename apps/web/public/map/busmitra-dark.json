@@ -1,0 +1,136 @@
+{
+  "version": 8,
+  "name": "Bus Mitra dark",
+  "metadata": {
+    "busmitra:note": "ARCH \u00a78 transit signage, on our own vector tiles (ADR-0005). {TILES} is replaced with NEXT_PUBLIC_TILES_URL at load. Fonts: tileserver-gl ships only 'Noto Sans Regular' \u2014 a style that names any other font loses every label with a 400."
+  },
+  "glyphs": "{TILES}/fonts/{fontstack}/{range}.pbf",
+  "sources": {
+    "omt": {
+      "type": "vector",
+      "url": "{TILES}/data/v3.json",
+      "attribution": "\u00a9 OpenMapTiles \u00a9 OpenStreetMap contributors"
+    }
+  },
+  "layers": [
+    {
+      "id": "bg",
+      "type": "background",
+      "paint": {
+        "background-color": "#0b0d10"
+      }
+    },
+    {
+      "id": "water",
+      "type": "fill",
+      "source": "omt",
+      "source-layer": "water",
+      "paint": {
+        "fill-color": "#0e1a24"
+      }
+    },
+    {
+      "id": "landuse",
+      "type": "fill",
+      "source": "omt",
+      "source-layer": "landcover",
+      "paint": {
+        "fill-color": "#101519",
+        "fill-opacity": 0.6
+      }
+    },
+    {
+      "id": "buildings",
+      "type": "fill",
+      "source": "omt",
+      "source-layer": "building",
+      "minzoom": 14,
+      "paint": {
+        "fill-color": "#161b21"
+      }
+    },
+    {
+      "id": "road-minor",
+      "type": "line",
+      "source": "omt",
+      "source-layer": "transportation",
+      "filter": ["!in", "class", "motorway", "trunk", "primary", "secondary"],
+      "minzoom": 12,
+      "paint": {
+        "line-color": "#232a32",
+        "line-width": ["interpolate", ["linear"], ["zoom"], 12, 0.6, 18, 6]
+      }
+    },
+    {
+      "id": "road-major",
+      "type": "line",
+      "source": "omt",
+      "source-layer": "transportation",
+      "filter": ["in", "class", "motorway", "trunk", "primary", "secondary"],
+      "paint": {
+        "line-color": "#2f3945",
+        "line-width": ["interpolate", ["linear"], ["zoom"], 8, 0.8, 18, 10]
+      }
+    },
+    {
+      "id": "rail",
+      "type": "line",
+      "source": "omt",
+      "source-layer": "transportation",
+      "filter": ["==", "class", "rail"],
+      "minzoom": 11,
+      "paint": {
+        "line-color": "#242b33",
+        "line-dasharray": [3, 2],
+        "line-width": 1
+      }
+    },
+    {
+      "id": "boundary",
+      "type": "line",
+      "source": "omt",
+      "source-layer": "boundary",
+      "filter": ["<=", "admin_level", 4],
+      "paint": {
+        "line-color": "#2a323c",
+        "line-width": 1,
+        "line-dasharray": [4, 3]
+      }
+    },
+    {
+      "id": "road-label",
+      "type": "symbol",
+      "source": "omt",
+      "source-layer": "transportation_name",
+      "minzoom": 13,
+      "layout": {
+        "text-field": ["get", "name"],
+        "text-font": ["Noto Sans Regular"],
+        "text-size": 11,
+        "symbol-placement": "line"
+      },
+      "paint": {
+        "text-color": "#7f8b99",
+        "text-halo-color": "#0b0d10",
+        "text-halo-width": 1.2
+      }
+    },
+    {
+      "id": "place-label",
+      "type": "symbol",
+      "source": "omt",
+      "source-layer": "place",
+      "filter": ["in", "class", "city", "town", "suburb", "neighbourhood", "village"],
+      "layout": {
+        "text-field": ["get", "name"],
+        "text-font": ["Noto Sans Regular"],
+        "text-size": ["interpolate", ["linear"], ["zoom"], 8, 11, 14, 15]
+      },
+      "paint": {
+        "text-color": "#9aa6b4",
+        "text-halo-color": "#0b0d10",
+        "text-halo-width": 1.5
+      }
+    }
+  ]
+}

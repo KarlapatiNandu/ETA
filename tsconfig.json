@@ -1,0 +1,41 @@
+{
+  "files": [],
+  "references": [
+    {
+      "path": "packages/config"
+    },
+    {
+      "path": "packages/contracts"
+    },
+    {
+      "path": "packages/geo"
+    },
+    {
+      "path": "packages/db"
+    },
+    {
+      "path": "packages/redis"
+    },
+    {
+      "path": "packages/notify"
+    },
+    {
+      "path": "packages/telemetry"
+    },
+    {
+      "path": "apps/engine"
+    },
+    {
+      "path": "apps/gateway"
+    },
+    {
+      "path": "apps/web"
+    },
+    {
+      "path": "apps/simulator"
+    },
+    {
+      "path": "apps/driver"
+    }
+  ]
+}

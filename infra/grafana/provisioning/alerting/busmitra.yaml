@@ -1,0 +1,141 @@
+# BUILD_PLAN Stage 8 — alerting rules. The thresholds are ALERTS in packages/config/src/thresholds.ts;
+# packages/config/src/alerts.test.ts fails if the two drift apart.
+# BUSMITRA_PROM_UID is the Prometheus datasource uid: `prometheus` in the local stack,
+# `grafanacloud-prom` on Grafana Cloud.
+apiVersion: 1
+groups:
+  - orgId: 1
+    name: busmitra
+    folder: Bus Mitra
+    interval: 1m
+    rules:
+      - uid: busmitra-latency
+        title: "Live-map latency: p95 fix → frame above 8 s"
+        condition: C
+        data:
+          - refId: A
+            relativeTimeRange: { from: 600, to: 0 }
+            datasourceUid: ${BUSMITRA_PROM_UID}
+            model:
+              expr: "histogram_quantile(0.95, sum by (le) (rate(busmitra_sse_ping_to_frame_seconds_bucket[5m])))"
+              instant: true
+              refId: A
+          - refId: C
+            datasourceUid: __expr__
+            model:
+              type: threshold
+              expression: A
+              conditions: [{ evaluator: { type: gt, params: [8] } }]
+              refId: C
+        noDataState: OK
+        execErrState: Error
+        for: 5m
+        annotations:
+          summary: "Students are seeing positions more than 8 s old."
+          runbook: vault/runbooks/live-map-not-updating.md
+        labels:
+          service: busmitra
+      - uid: busmitra-consumer-lag
+        title: "A stream consumer is falling behind (lag above 1000)"
+        condition: C
+        data:
+          - refId: A
+            relativeTimeRange: { from: 600, to: 0 }
+            datasourceUid: ${BUSMITRA_PROM_UID}
+            model:
+              expr: "max(busmitra_stream_lag)"
+              instant: true
+              refId: A
+          - refId: C
+            datasourceUid: __expr__
+            model:
+              type: threshold
+              expression: A
+              conditions: [{ evaluator: { type: gt, params: [1000] } }]
+              refId: C
+        noDataState: OK
+        execErrState: Error
+        for: 2m
+        annotations:
+          summary: "A worker is not keeping up with its stream: the live map, ETAs or notifications are going stale."
+          runbook: vault/runbooks/chaos-kill-worker.md
+        labels:
+          service: busmitra
+      - uid: busmitra-push-failures
+        title: "Push failure rate above 10% over the last hour"
+        condition: C
+        data:
+          - refId: A
+            relativeTimeRange: { from: 600, to: 0 }
+            datasourceUid: ${BUSMITRA_PROM_UID}
+            model:
+              expr: 'sum(increase(busmitra_notify_sends_total{channel="push",outcome!="accepted"}[1h])) / sum(increase(busmitra_notify_sends_total{channel="push"}[1h]))'
+              instant: true
+              refId: A
+          - refId: C
+            datasourceUid: __expr__
+            model:
+              type: threshold
+              expression: A
+              conditions: [{ evaluator: { type: gt, params: [0.1] } }]
+              refId: C
+        noDataState: OK
+        execErrState: Error
+        for: 5m
+        annotations:
+          summary: "More than one push in ten is refused. A revoked VAPID key looks exactly like this."
+          runbook: vault/runbooks/push-not-delivering.md
+        labels:
+          service: busmitra
+      - uid: busmitra-dark-bus
+        title: "A bus has been silent 15+ minutes on an open trip"
+        condition: C
+        data:
+          - refId: A
+            relativeTimeRange: { from: 600, to: 0 }
+            datasourceUid: ${BUSMITRA_PROM_UID}
+            model:
+              expr: "max(busmitra_fleet_dark_too_long)"
+              instant: true
+              refId: A
+          - refId: C
+            datasourceUid: __expr__
+            model:
+              type: threshold
+              expression: A
+              conditions: [{ evaluator: { type: gt, params: [0] } }]
+              refId: C
+        noDataState: OK
+        execErrState: Error
+        for: 1m
+        annotations:
+          summary: "A tracker has gone quiet mid-trip outside any known dead zone for 15 minutes."
+          runbook: vault/runbooks/bus-not-appearing.md
+        labels:
+          service: busmitra
+      - uid: busmitra-dead-letters
+        title: "Pings the persister could not write"
+        condition: C
+        data:
+          - refId: A
+            relativeTimeRange: { from: 600, to: 0 }
+            datasourceUid: ${BUSMITRA_PROM_UID}
+            model:
+              expr: "max(busmitra_stream_dead_letters)"
+              instant: true
+              refId: A
+          - refId: C
+            datasourceUid: __expr__
+            model:
+              type: threshold
+              expression: A
+              conditions: [{ evaluator: { type: gt, params: [0] } }]
+              refId: C
+        noDataState: OK
+        execErrState: Error
+        for: 1m
+        annotations:
+          summary: "stream:pings:dead is not empty: positions are missing from history and need a human."
+          runbook: vault/runbooks/chaos-kill-postgres.md
+        labels:
+          service: busmitra

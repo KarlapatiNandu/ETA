@@ -1,0 +1,34 @@
+{
+  "name": "@busmitra/gateway",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "node --env-file-if-exists=../../.env --watch src/server.ts",
+    "start": "node --env-file-if-exists=../../.env src/server.ts",
+    "typecheck": "tsc -p tsconfig.json",
+    "lint": "eslint src",
+    "tracker": "node --env-file-if-exists=../../.env src/cli/tracker.ts"
+  },
+  "dependencies": {
+    "@busmitra/config": "workspace:*",
+    "@busmitra/contracts": "workspace:*",
+    "@busmitra/db": "workspace:*",
+    "@busmitra/engine": "workspace:*",
+    "@busmitra/geo": "workspace:*",
+    "@busmitra/notify": "workspace:*",
+    "@busmitra/redis": "workspace:*",
+    "@busmitra/telemetry": "workspace:*",
+    "@fastify/cors": "^11.0.0",
+    "@fastify/rate-limit": "^11.2.0",
+    "@opentelemetry/api": "^1.9.1",
+    "@supabase/supabase-js": "^2.117.0",
+    "bcryptjs": "^3.0.3",
+    "fastify": "^5.12.5",
+    "jose": "^6.2.12",
+    "zod": "^4.6.5"
+  },
+  "exports": {
+    "./trackers": "./src/services/trackers.ts"
+  }
+}

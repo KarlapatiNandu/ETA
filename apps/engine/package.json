@@ -1,0 +1,48 @@
+{
+  "name": "@busmitra/engine",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "exports": {
+    "./roster": "./src/workers/roster.ts",
+    "./routes": "./src/routes.ts",
+    "./survey": "./src/workers/survey.ts",
+    "./osrm": "./src/osrm.ts",
+    "./geo": "./src/workers/geo.ts",
+    "./persister": "./src/workers/persister.ts",
+    "./route-cache": "./src/lib/route-cache.ts",
+    "./presence": "./src/workers/presence.ts",
+    "./stop-events": "./src/workers/stop-events.ts",
+    "./rehydrate": "./src/lib/rehydrate.ts",
+    "./walk": "./src/walk.ts",
+    "./eta": "./src/workers/eta.ts",
+    "./leave-now": "./src/workers/leave-now.ts",
+    "./speed-model": "./src/lib/speed-model.ts",
+    "./audience": "./src/lib/audience.ts",
+    "./event-day": "./src/workers/event-day.ts",
+    "./tickets": "./src/workers/tickets.ts",
+    "./announcements": "./src/workers/announcements.ts",
+    "./schedule": "./src/workers/schedule.ts",
+    "./notify": "./src/workers/notify.ts",
+    "./deadzone": "./src/workers/deadzone.ts",
+    "./health": "./src/lib/health.ts"
+  },
+  "scripts": {
+    "dev": "node --env-file-if-exists=../../.env --watch src/main.ts",
+    "start": "node --env-file-if-exists=../../.env src/main.ts",
+    "typecheck": "tsc -p tsconfig.json",
+    "lint": "eslint src",
+    "deadzone": "node --env-file-if-exists=../../.env src/cli/deadzone.ts"
+  },
+  "dependencies": {
+    "@busmitra/config": "workspace:*",
+    "@busmitra/contracts": "workspace:*",
+    "@busmitra/db": "workspace:*",
+    "@busmitra/geo": "workspace:*",
+    "@busmitra/notify": "workspace:*",
+    "@busmitra/redis": "workspace:*",
+    "@busmitra/telemetry": "workspace:*",
+    "@opentelemetry/api": "^1.9.1",
+    "zod": "^4.6.5"
+  }
+}

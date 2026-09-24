@@ -1,0 +1,17 @@
+# BUILD_PLAN Stage 8 — the Postgres half of the dashboards (ETA MAE, delivery, dead zones).
+# Grafana connects as `busmitra_metrics`, which can read only the aggregate obs_* views (0009) —
+# never a student, a phone number or a position. Prometheus and Tempo come with the image.
+apiVersion: 1
+datasources:
+  - name: BusMitra Postgres
+    uid: busmitra-pg
+    type: grafana-postgresql-datasource
+    url: ${BUSMITRA_METRICS_DB_HOST}
+    user: busmitra_metrics
+    jsonData:
+      database: ${BUSMITRA_METRICS_DB_NAME}
+      sslmode: ${BUSMITRA_METRICS_DB_SSLMODE}
+      postgresVersion: 1500
+      timescaledb: false
+    secureJsonData:
+      password: ${BUSMITRA_METRICS_DB_PASSWORD}

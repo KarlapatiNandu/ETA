@@ -67,7 +67,7 @@ If Postgres goes down mid-route, the live map keeps working. That property is no
 | **Background jobs** | BullMQ | Retries with backoff, rate limiting, repeatable jobs for the sweepers. Notification sends must never run inline on a request. |
 | **Database** | Supabase Postgres 15 + PostGIS + pg_trgm + pgcrypto | Geospatial queries, fuzzy stop search, auth, storage and row-level security in one system. See §9 for the production migration answer (spoiler: don't migrate). |
 | **ORM** | Drizzle | SQL-first, so raw PostGIS expressions stay readable. Generates types from the schema. Migrations are plain SQL files we can review. |
-| **Routing / geo engine** | OSRM, self-hosted, Telangana OSM extract | `car` profile for bus travel times and route derivation, `foot` profile for student walk-to-stop ETAs. Free, runs locally, no per-request billing, works offline in dev. |
+| **Routing / geo engine** | OSRM, self-hosted, Hyderabad bbox clipped from the Telangana extract (OpenStreetMap France mirror) | `car` profile for bus travel times and route derivation, `foot` profile for student walk-to-stop ETAs. Free, runs locally, no per-request billing, works offline in dev. |
 | **Geocoding** | Photon (self-hosted), MapTiler Geocoding as fallback | Needed so "Dilsukhnagar" resolves to an *area* even when it is not a stop name. |
 | **Web push** | `web-push` (VAPID) | Direct to the browser push services. No Firebase dependency and no vendor lock-in for a web app. |
 | **SMS fallback** | MSG91 (India, DLT-registered) | Guarantees URGENT/CRITICAL tiers land on iPhones that skipped the PWA install. ⚠️ **DLT registration is a 1–2 week regulatory process — start it in Stage 0.** |
@@ -106,7 +106,7 @@ If Postgres goes down mid-route, the live map keeps working. That property is no
 
 ### 2.4 ADR-0002 — Redis as the live fleet, Postgres as the record
 
-Redis holds authoritative *current* state; Postgres holds authoritative *historical* state. On gateway boot, Redis is rehydrated from the last 5 minutes of `positions` so a restart does not blank the map. Redis persistence is AOF `everysec` — losing one second of live positions on a hard crash is acceptable because the next ping is five seconds away.
+Redis holds authoritative *current* state; Postgres holds authoritative *historical* state. On engine boot (the engine owns every write to `fleet:live`), Redis is rehydrated from the last 5 minutes of `positions` so a restart does not blank the map. Each rehydrated bus is written with the presence its age already implies, so a four-minute-old fix comes back DARK, not LIVE, and nothing newer is ever overwritten. Redis persistence is AOF `everysec` — losing one second of live positions on a hard crash is acceptable because the next ping is five seconds away.
 
 ---
 
@@ -187,6 +187,8 @@ The deck targeted ~8 s pipeline, ~23 s worst-case staleness. With a phone-based 
 ### Perceived latency
 
 Real latency is 3 s; **perceived** latency should be zero. The client dead-reckons: between pings it advances the marker along the known route polyline at the last reported speed, easing to the true position when the next ping lands. The bus glides instead of teleporting. This is the single highest-leverage UI detail in the product and costs about forty lines of code.
+
+Dead reckoning has hard limits, because it is the one place the client draws a position nobody reported (invariant: never fabricate). It extrapolates **only a LIVE bus**, **at most two cadences past its last fix** (10 s at the moving cadence), and never past the end of the route. A DEGRADED or DARK bus is drawn at its last true fix. Off-route, the marker eases to the reported point and never runs ahead. (`apps/web/lib/map/interpolate.ts`.)
 
 ---
 
@@ -305,6 +307,13 @@ ETA_k = Σ (segmentLength / v_expected) + Σ expectedDwell(intermediate stops)
 
 **Report a range, not a point.** Segment speed variance gives a p90. The UI shows "4–6 min" with a confidence dot. A single confident number that is wrong destroys trust faster than an honest range ever will.
 
+**As built (Stage 5, `apps/engine/src/workers/eta.ts`).** A consumer group `eta` on `stream:events` recomputes the range to every stop still ahead of the bus on each accepted position, and writes `trip:{id}:eta`. `v_hist` resolves per segment for the weekday and quarter-hour **in IST**. `v_osrm` is OSRM car free-flow per 200 m segment, fetched once per route version by routing through the route's own points every 200 m and cached for a day. A leg more than three times the segment length snapped onto the far carriageway and is ignored. `v_live` is the bus's EWMA. Confidence is the share of the remaining distance covered by learned history: high ≥ 80 %, medium ≥ 30 %, low otherwise. So a new route honestly says *low* until it has history.
+
+- **Announced only on material change.** An `eta.update` goes out (over `pubsub:eta`, to the connections watching that stop) when p50 differs by more than 30 s from what the last announcement's countdown now predicts. Between announcements the client counts down from `at`, the fix time.
+- **Withdrawn, never left to rot.** Off-route, the one cycle after a re-snap (§5.3), DARK and ENDED all delete the trip's ETAs and send `withdrawn: true`. A stop the bus has passed is dropped from the hash the same way.
+- **Measured.** One prediction per stop is logged to `eta_predictions` as p50 enters each of the 10-, 5- and 2-minute buckets. The actual arrival is filled in from `trip_stop_events`, and MAE at the 10-minute horizon is the Stage 5 gate.
+- **History is cached per lineage for ten minutes on the wall clock**, never on the fix's timestamp. An older (replayed, backfilled) fix would otherwise make a stale cache look fresh.
+
 ### 5.6 "Leave now" — the highest-stakes computation in the product
 
 ```
@@ -324,6 +333,10 @@ Evaluated by a ticker every 10 s that iterates only *active* subscriptions — a
 
 **Asymmetric error handling.** Being 2 minutes early costs a student 2 minutes of waiting. Being 30 seconds late costs them the bus and an hour of their day. The buffer is therefore deliberately generous, and **`safetyBuffer` grows automatically when ETA confidence is low.**
 
+**As built (Stage 5, `apps/engine/src/workers/leave-now.ts`).** The ticker reads the `subs_active` rows from Postgres every 10 s and everything else from Redis. It fires only from a current picture: the bus must be **LIVE** on that trip, and the ETA must come from a fix no older than two cadences plus 10 s. A DEGRADED bus waits for its next fix, and a DARK bus has no ETA at all. The remaining time is `p50 − (now − at)`. Firing is a compare-and-set, `UPDATE … SET notified_departure_at = now() WHERE notified_departure_at IS NULL RETURNING`, so the database decides who fires (invariant 5). Only then is a `leave_now` event appended to `stream:notify`. **Stage 5 emits the event; Stage 6 delivers it.** With Postgres down the ticker does nothing, deliberately: an alert that could fire twice is worse than one that waits for the gate. On the same pass, subscriptions to ended trips become `completed`, and one whose bus reached the stop before the alert could fire becomes `missed`.
+
+The web app shows the same comparison as a countdown: *leave in* = remaining p50 − travel time − buffer − (p90 − p50). The number on screen and the alert agree by construction.
+
 ### 5.7 Dead-zone detection and learning
 
 This is an explicit product requirement and deserves more than a timeout.
@@ -335,7 +348,7 @@ This is an explicit product requirement and deserves more than a timeout.
 | `LIVE` | age < 3 × cadence | solid marker | — |
 | `DEGRADED` | 3 × cadence ≤ age < 9 × cadence | amber, "last seen 34 s ago" | none — avoid alarm fatigue |
 | `DARK` | age ≥ 9 × cadence | red, frozen at last known, explicit timestamp | see classification below |
-| `ENDED` | explicit trip end, or DARK > 10 min | **removed from map** | trip closed |
+| `ENDED` | explicit trip end, or DARK > 10 min | **removed from map** | explicit end: trip closed. Timeout: see below |
 
 So a moving bus (5 s cadence) goes amber at 15 s and red at 45 s; a stationary one (15 s cadence) at 45 s and 135 s.
 
@@ -343,7 +356,13 @@ So a moving bus (5 s cadence) goes amber at 15 s and red at 45 s; a stationary o
 
 **This requires a contract change:** every `PingBatch` carries `cadence_s`, the interval the tracker is currently reporting at. The gateway writes it into `fleet:live` alongside the position, and the sweeper reads it. A batch without it is treated as 5 s.
 
+⚠️ **The advertised cadence is a promise, and the tracker must keep it across a cadence change.** When a bus has stood still for 30 s the tracker slows from 5 s to 15 s. If the next ping then waits the new 15 s, the last ping on record still says 5 s, and the bus reads as three missed pings: amber at every stop, the exact false alarm this section exists to prevent. So the next ping is due at the *sooner* of the current cadence and the cadence the previous ping was sent with (`pingDue` in `packages/contracts/src/tracker.ts`). Speeding up is never delayed. Found while building Stage 3; the driver app and the simulator both carry the rule, and a simulator property test checks that no gap ever exceeds what the previous fix advertised.
+
 ⚠️ Do not rely on Redis key-expiry notifications for this — they are lazy and best-effort. Run an explicit sweeper.
+
+**ENDED by timeout removes the bus from the map, but does not close the trip.** The trip row stays `dark` and the live entry is flagged `dark_timeout`. A tracker that comes back — a phone that died and restarted, a long tunnel — is a bus that is really there, so its next fix puts it back on the map. An explicit END is final: buffered pings flushed after it can never resurrect the bus. The trip is closed by the driver's END, or by the bus's next START (`one_live_trip`).
+
+Every sweeper write is a **compare-and-set on the fix it judged**: a ping that lands mid-sweep wins, and a transition already made is never announced twice, so two sweepers are harmless. Postgres is written only on transitions (`signal_outages`, `trips.status`), and never gates them: with the database down, buses still turn amber and red on time, and the outage row is written when it returns.
 
 **Classification on entering DARK** — the part that makes this intelligent:
 
@@ -357,6 +376,8 @@ else:
     → tier T2 IMPORTANT — push to today's riders of that trip + admin console
     → open an automatic ticket if it persists past 5 minutes
 ```
+
+*As built (Stage 7, `apps/engine/src/workers/tickets.ts`):* every 30 s, an open `signal_outages` row outside any known dead zone, older than five minutes, **on a trip that is still running or dark**, becomes one `signal_lost` ticket (`one_open_signal_ticket`). It resolves itself when the bus reports again ("signal came back after 7 min") or when the trip ends while still silent. The ticket is paperwork for the TD; it notifies no student — the T2 comes from the presence transition itself (Stage 6).
 
 **Learning the dead zones.** Every `DARK → RECOVERED` transition writes an outage record with entry point, exit point and duration. A nightly job runs DBSCAN (ε = 150 m, minPts = 4) over outage entry points, builds a buffered convex hull, and writes a `dead_zones` polygon with `confidence` and `avg_outage_s`.
 
@@ -388,7 +409,7 @@ Everything the product promises is delivered here. It gets a dedicated worker, a
 | **T3** | `INFO` | Push (normal, **collapsible via `tag`**) | Stop reached, recovered from dead zone. |
 | **T4** | `AMBIENT` | In-app only | ETA drift, minor status. Notification center only. |
 
-**The `tag` detail matters enormously.** A 12-stop route would otherwise produce 12 stacked notifications. All T3 stop-progress notifications for one trip share `tag: "trip:{id}:progress"` with `renotify: false`, so each *replaces* the last. The student sees one notification that keeps updating: "Bus 14 — now at Dilsukhnagar, 3 stops away." T0 sets `requireInteraction: true`.
+**The `tag` detail matters enormously.** A 12-stop route would otherwise produce 12 stacked notifications. All T3 stop-progress notifications for one trip share `tag: "trip-{id}-progress"` with `renotify: false` (hyphens, not colons: a tag is not a Redis key, and the key-registry guard would rightly flag one that looks like it), so each *replaces* the last. The student sees one notification that keeps updating: "Bus 14 — now at Dilsukhnagar, 3 stops away." T0 sets `requireInteraction: true`.
 
 ### 6.2 Idempotency
 
@@ -431,6 +452,20 @@ Note that **the notification center is written unconditionally**, regardless of 
 
 **Push subscription health:** a `410 Gone` or `404` from the push service permanently deletes the subscription. Repeated `429`s back off per endpoint. `failure_count ≥ 5` marks it unhealthy and promotes SMS eligibility.
 
+**As built (Stage 7) — how a send is confirmed, and how it reaches this pipeline.**
+
+- *The confirmation is enforced by the gateway, not trusted to the UI* (invariant 11). Every request that notifies anyone — an announcement, out of commission, back in service, an event-day apply with changes — carries `confirm_count`, the number on the dialog. The gateway re-resolves the audience with the same resolver the notify worker will use (`apps/engine/src/lib/audience.ts`) and answers `409 count_changed` with the new number if it moved, `428` if the count is missing, and for T0 `428` unless the count is also typed out. The dialog shows the new number and asks again; it never retries past it.
+- *The row is the outbox; `stream:notify` is a doorbell.* The gateway commits the row (announcement, ticket, applied upload) and only then appends `{type, id}` to `stream:notify`. The notify worker reads the truth from the row, so a doorbell for a row that never committed is dropped, and a doorbell lost to a Redis blip is recovered by the worker's sweep over rows that were published but never delivered (Stage 6). A Redis failure after commit is logged, never turned into an error for a change that has already happened. Ringing inside the transaction was rejected: the worker can read the doorbell before the commit is visible and drop a real notification.
+
+**As built (Stage 6, `apps/engine/src/workers/notify.ts`).**
+
+- *Plan → record → deliver.* Each event becomes a plan (tier, audience, text, how long it stays news) in `lib/notify-plans.ts`. **Record** writes the parent and every recipient row in one transaction, idempotent on `notifications.source_key` and `notif_dedupe`; this is the notification center and it happens before any transport (invariant 14). **Deliver** claims due rows with a compare-and-set on `sent_at IS NULL` and then tries push, then SMS. A replayed event, a retried batch or a restarted worker finds its rows and adds nothing; a crash between a claim and its send can cost that student a buzz, never a second one.
+- *Filters decide the channel, never the record.* `packages/notify/src/tiers.ts` `decide()` applies §6.3's filters in order. Suppressed students get a center entry marked `inapp_only` with the reason; quiet hours defer the transport to the window's end.
+- *News has a shelf life.* A leave-now older than 2 min, a trip start older than 5 min, and stop/signal events older than 2 min never buzz (the latter are not recorded at all); admin sends reach the center but not phones after 12 h; an "out of commission" whose ticket has already been resolved never buzzes. With backfill never producing an event (invariant 4), a replayed day is silent.
+- *Event wiring.* Trip start is a doorbell rung by the driver's START (never by a resume, never by buffered pings): T1 to the main favourite's holders, T3 with *Follow* / *Not today* to starred holders. Stop progress (`stop.reached`, arrived or skipped, never backfill) is T3 to riders following the trip whose stop is at or after it, collapsed on `trip-{id}-progress`. Signal lost is T2 to the trip's riders, T4 in a known dead zone, and T3 when it recovers.
+- *Live frames.* The worker publishes `notification` / `ticket.update` frames on `pubsub:notify`; the gateway forwards them only to the named students' streams, without an id (invariant 9).
+- *Measured.* 600 students, one T0: recorded and handed to a push stub answering in 20 ms in 0.31 s (PGlite) / 0.55 s (Postgres 15). Event → push received by a real browser through Google's push service: p50 590 ms, p95 2.4 s (n = 40, headless Chrome, local stack); a phone's own share is not measured yet (`vault/benchmarks/alert-latency-v1.md`).
+
 ### 6.4 The student's relationship to a bus
 
 Four distinct concepts — keeping them separate is what makes the alert logic correct:
@@ -460,7 +495,9 @@ This directly implements the requested flow: a student receiving an alert from a
 
 ## 7. Realtime channel design
 
-One SSE connection per client: `GET /v1/stream` (JWT via a fetch-based EventSource polyfill, or a short-lived signed query token).
+One SSE connection per client: `GET /v1/stream`, JWT in the `Authorization` header. The web client is fetch-based rather than `EventSource`, because `EventSource` cannot send a header, and a token in the query string ends up in access logs. The client does what `EventSource` would have done, explicitly: it resends the last broadcast id as `Last-Event-ID`, reconnects with backoff and jitter (1 s to 30 s, at once on `online`), treats 2.5 heartbeats of silence as a dead connection, and fetches a fresh token per attempt. The gateway closes a stream when its token expires.
+
+**Handshake.** Every stream opens with `stream.ready` (`{connId, heartbeatS, serverTime, replayTruncated?}`), then any Last-Event-ID replay, then a `fleet.snapshot` re-derived for this connection, then live frames. The client shows every age on the gateway's clock (`serverTime`), not the phone's. A snapshot is everything this connection wants, so the client replaces its fleet with it. A position older than one already held is ignored, and so is a status judged against an older fix, so replayed frames can never move a bus backwards or turn it amber again.
 
 **Events:**
 
@@ -470,18 +507,23 @@ One SSE connection per client: `GET /v1/stream` (JWT via a fetch-based EventSour
 | `bus.position` | delta: `{id, lat, lng, spd, hdg, s, ts}` | ≤ 1 Hz per bus |
 | `bus.status` | `LIVE \| DEGRADED \| DARK \| ENDED` + reason + `cadence` | on transition |
 | `eta.update` | `{tripId, stopId, p50, p90}` for the client's stop | on change > 30 s |
-| `stop.reached` | `{tripId, stopId, seq}` | on event |
+| `stop.reached` | `{tripId, stopId, seq, busId, event, at, backfill}`: `event` is arrived, departed or skipped; `backfill` marks crossings derived from late-flushed pings, which must never notify | on event |
 | `notification` | notification-center entry | on send |
 | `ticket.update` | ticket state transition | on change |
+| `stream.ready` | `{connId, heartbeatS, serverTime}`: per-user, no id | on connect |
 | `:heartbeat` | comment frame | every 15 s |
 
-**Subscription scoping.** The client posts `{bbox, busIds}` to `/v1/stream/focus`; the server sends only buses in view plus the client's favourites and active trip. At 30 buses, broadcasting everything costs 30 × 60 B = 1.8 KB/s per client — which at **600 concurrent clients is ≈ 8.6 Mbit/s of egress, sustained, during the exact five minutes everyone is connected.** That is survivable but wasteful, and it is the number that grows fastest if real ridership turns out higher than assumed. Scoping drops it by ~80% to under 2 Mbit/s and is the pattern that survives both a 200-bus future and a concurrency estimate that was too low.
+**Subscription scoping.** The client posts `{connId, bbox, busIds}` to `/v1/stream/focus`; the server sends only buses in view plus the client's favourites and active trip, answers with a fresh snapshot for the new focus, and also sends the one position frame that carries a bus out of view. The focus is stored as the value of the connection's own TTL key (below), so any gateway instance can accept the POST; the instance holding the stream picks it up on the next heartbeat. Because the key embeds the user id, another student's `connId` is simply not found (404). At 30 buses, broadcasting everything costs 30 × 60 B = 1.8 KB/s per client — which at **600 concurrent clients is ≈ 8.6 Mbit/s of egress, sustained, during the exact five minutes everyone is connected.** That is survivable but wasteful, and it is the number that grows fastest if real ridership turns out higher than assumed. Scoping drops it by ~80% to under 2 Mbit/s and is the pattern that survives both a 200-bus future and a concurrency estimate that was too low.
 
-**Resumption.** Each frame carries an `id`. On reconnect the browser sends `Last-Event-ID` automatically, and the server replays from the Redis Stream — so a tunnel on the student's own commute does not lose their stop-arrival event.
+**Resumption.** Each broadcast frame carries an `id`. On reconnect the client sends `Last-Event-ID`, and the server replays from the Redis Stream — so a tunnel on the student's own commute does not lose their stop-arrival event. Replay is capped at 10,000 frames. If the stream has been trimmed past the client's id, `stream.ready` says `replayTruncated: true` and the snapshot is all there is. The check is conservative: it can flag a resume that lost nothing, never the reverse.
+
+**Fan-out.** Each gateway process runs **one** blocking `XREAD` on `stream:events` and fans frames out to every stream it holds. Six hundred connections each blocking on Redis would be six hundred Redis connections.
 
 ⚠️ Only **broadcast-class** events (`bus.position`, `bus.status`, `stop.reached`) carry resumable ids from `stream:events`. Per-user frames (`eta.update`, `notification`) are not in a shared stream and are **re-derived on connect** from Redis and the notification center, not replayed. Mixing the two would let a resumed client receive another student's scoped payloads.
 
 **Connection cap.** Three concurrent streams per user, tracked as **individual keys with a TTL** (`sse:conn:{userId}:{connId}`, 45 s, refreshed by the 15 s heartbeat), counted with a `SCAN` over the prefix — *not* as a plain SET. A SET with no expiry is a lockout waiting to happen: any gateway crash or `SIGKILL` leaves phantom connection ids behind, the user hits the cap against connections that no longer exist, and the only recovery is manual intervention in Redis. A key that dies when the heartbeat stops is self-healing.
+
+A new stream claims its key **first and counts second**, so two racing connects can both be refused but never both admitted past the cap. Each key's value names the gateway instance holding it (`hostname:port`, stable across restarts), and a gateway **deletes its own leftover keys at boot**. After a `SIGKILL` and restart, a user is therefore never locked out at all. Keys held by an instance that does not come back expire within 45 s. A graceful shutdown ends every stream and deletes its key.
 
 ---
 
@@ -508,8 +550,8 @@ Everything in `docker-compose.dev.yml`:
 |---|---|---|
 | Supabase (Postgres 15 + PostGIS, Auth, Storage, Studio) | via Supabase CLI | 54321–54324 |
 | Redis 7 | `redis:7-alpine` | 6379 |
-| OSRM `car` | `osrm/osrm-backend` + Telangana extract | 5000 |
-| OSRM `foot` | `osrm/osrm-backend` + Telangana extract | 5001 |
+| OSRM `car` | `ghcr.io/project-osrm/osrm-backend` + Hyderabad extract | 5000 |
+| OSRM `foot` | `ghcr.io/project-osrm/osrm-backend` + Hyderabad extract | 5001 |
 | Photon geocoder | `rtuszik/photon-docker` | 2322 |
 | Tile server (ADR-0005) | `maptiler/tileserver-gl` + Hyderabad `.mbtiles` | 8080 |
 | Mailpit (email capture) | `axllent/mailpit` | 8025 |

@@ -1,0 +1,79 @@
+@import "tailwindcss";
+@import "@busmitra/ui/tokens.css";
+
+/* ARCH §8 — dark-first transit signage; colour carries state, never decoration.
+   The values live in packages/ui/src/tokens.css, defined in full for both themes; `inline`
+   makes every utility read the variable, so a theme switch reaches every surface. */
+@theme inline {
+  --color-canvas: var(--bm-canvas);
+  --color-panel: var(--bm-panel);
+  --color-raised: var(--bm-panel-raised);
+  --color-line: var(--bm-line);
+  --color-ink: var(--bm-ink);
+  --color-muted: var(--bm-muted);
+  --color-live: var(--bm-live);
+  --color-live-ink: var(--bm-live-ink);
+  --color-degraded: var(--bm-degraded);
+  --color-dark: var(--bm-dark);
+  --color-route: var(--bm-route);
+  --font-sans: "Inter", ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
+}
+
+body {
+  background: var(--bm-canvas);
+  color: var(--bm-ink);
+  font-variant-numeric: tabular-nums;
+}
+
+/* ── live map markers (components/map) ─────────────────────────────────────
+   Each presence state differs in shape as well as colour: solid, dashed, hollow. */
+.bm-bus {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+  cursor: pointer;
+  will-change: transform;
+}
+.bm-bus__pill {
+  min-width: 30px;
+  padding: 2px 7px;
+  border-radius: 999px;
+  border: 2px solid var(--bm-live);
+  background: var(--bm-live);
+  color: var(--bm-live-ink);
+  font: 700 12px/16px var(--font-sans, system-ui);
+  text-align: center;
+  box-shadow: 0 1px 4px rgb(0 0 0 / 0.5);
+}
+.bm-bus[data-state="DEGRADED"] .bm-bus__pill {
+  border: 2px dashed var(--bm-degraded);
+  background: var(--bm-panel);
+  color: var(--bm-degraded);
+}
+.bm-bus[data-state="DARK"] .bm-bus__pill {
+  border: 2px solid var(--bm-dark);
+  background: var(--bm-panel);
+  color: var(--bm-dark);
+}
+.bm-bus[data-selected="true"] .bm-bus__pill {
+  outline: 2px solid var(--bm-focus);
+  outline-offset: 2px;
+}
+.bm-bus__note {
+  padding: 0 5px;
+  border-radius: 4px;
+  background: var(--bm-panel);
+  color: var(--bm-ink);
+  font: 500 11px/15px var(--font-sans, system-ui);
+  white-space: nowrap;
+}
+.bm-bus__note:empty {
+  display: none;
+}
+.bm-bus[data-state="DEGRADED"] .bm-bus__note {
+  color: var(--bm-degraded);
+}
+.bm-bus[data-state="DARK"] .bm-bus__note {
+  color: var(--bm-dark);
+}

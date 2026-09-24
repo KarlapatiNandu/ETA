@@ -1,0 +1,21 @@
+{
+  "name": "@busmitra/simulator",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "sim": "node --env-file-if-exists=../../.env src/cli.ts",
+    "typecheck": "tsc -p tsconfig.json",
+    "lint": "eslint src"
+  },
+  "dependencies": {
+    "@busmitra/config": "workspace:*",
+    "@busmitra/contracts": "workspace:*",
+    "@busmitra/db": "workspace:*",
+    "@busmitra/engine": "workspace:*",
+    "@busmitra/gateway": "workspace:*",
+    "@busmitra/geo": "workspace:*",
+    "@busmitra/redis": "workspace:*",
+    "zod": "^4.6.5"
+  }
+}

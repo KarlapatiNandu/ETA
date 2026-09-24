@@ -1,0 +1,48 @@
+/*
+ * Bus Mitra design tokens (ARCH §8, BUILD_PLAN Stage 3 `packages/ui`).
+ *
+ * Transit signage: near-black canvas, one saturated "live" green, amber for DEGRADED, red for
+ * DARK and T0. Colour carries state, never decoration — and every state also has a shape and a
+ * word (see src/index.ts), so nothing depends on telling green from red.
+ *
+ * Both themes define EVERY token. The light theme used to override only some of them, so any
+ * surface built from an un-overridden token stayed dark on a light canvas (the Stage 1 admin
+ * shell bug carried into Stage 3).
+ */
+:root {
+  color-scheme: dark;
+  --bm-canvas: #0b0d10;
+  --bm-panel: #14181d;
+  --bm-panel-raised: #1b2026;
+  --bm-line: #262c34;
+  --bm-ink: #e8ecf1;
+  --bm-muted: #8a95a3;
+  --bm-live: #2fd27a;
+  --bm-live-ink: #04150b;
+  --bm-degraded: #f5a524;
+  --bm-degraded-ink: #1d1203;
+  --bm-dark: #ef4444;
+  --bm-dark-ink: #ffffff;
+  --bm-route: #3b82f6;
+  --bm-focus: #7cc4ff;
+}
+
+@media (prefers-color-scheme: light) {
+  :root {
+    color-scheme: light;
+    --bm-canvas: #f6f7f9;
+    --bm-panel: #ffffff;
+    --bm-panel-raised: #f0f2f5;
+    --bm-line: #dde1e6;
+    --bm-ink: #0f1419;
+    --bm-muted: #5b6673;
+    --bm-live: #0f9d58;
+    --bm-live-ink: #ffffff;
+    --bm-degraded: #b76e00;
+    --bm-degraded-ink: #ffffff;
+    --bm-dark: #c81e1e;
+    --bm-dark-ink: #ffffff;
+    --bm-route: #1d5fd1;
+    --bm-focus: #1d5fd1;
+  }
+}

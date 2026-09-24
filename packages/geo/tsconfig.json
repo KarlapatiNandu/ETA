@@ -1,0 +1,7 @@
+{
+  "extends": "../../tsconfig.base.json",
+  // No "node" types on purpose: packages/geo is pure (invariant 13). Anything that reaches for
+  // process, fs, timers or Date.now() fails typecheck here instead of in a replayed trace.
+  "compilerOptions": { "types": [] },
+  "include": ["src"]
+}
