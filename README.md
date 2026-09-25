@@ -224,6 +224,7 @@ Every variable is listed and explained in [`.env.example`](.env.example), with i
 | `pnpm sim deadzone-check --learn` | Run the dead-zone learner now and compare with the zones the simulator injected |
 | `pnpm --filter @busmitra/engine deadzone` | Run the nightly dead-zone learner once |
 | `pnpm tracker provision --bus 14 --kind hardware --device <IMEI>` | Pair a GT06 hardware tracker (prints its adapter entry) |
+| `GATEWAY_URL=… ADAPTER_DEVICES_FILE=… pnpm --filter @busmitra/adapter start` | Run the GT06 adapter (not part of `pnpm dev`: only where wired trackers exist) |
 | `bash infra/scripts/restore-drill.sh` | Back up the database, restore it into a fresh Supabase-shaped database, verify it matches |
 | `pnpm typecheck` · `pnpm lint` · `pnpm format` | Static checks |
 | `pnpm build` | Production builds (needs the `NEXT_PUBLIC_*` variables) |

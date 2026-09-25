@@ -191,6 +191,19 @@ Full reasoning in [ADR-0009](../decisions/ADR-0009-observability-and-load.md). I
 - **Symptom:** `docker compose` bind mounts from `/var/folders` or `/private/tmp` produced empty
   directories. **Cause:** colima shares only the home directory with its VM. **Fix:** work dirs
   under the repository (git-ignored).
+- **Symptom:** a 10-minute fleet run with dead zones recorded **zero** outages. **Cause:** not a
+  bug — the seeded routes average 35 km and injected zones start 5 km+ in, so buses never reached
+  them. A one-hour run recorded 114 outages (113 recovered). **Lesson:** a live learning check
+  needs hours of repeated trips per route; the deterministic test is the verification.
+- **Symptom:** the one-hour live run learned one zone the simulator never injected. **Cause:** the
+  dev gateway and engine run with `--watch`, and editing sources (and the pre-commit hook's
+  `prettier --write`) restarted them mid-run: 404 send retries, silences of 85–330 s, outages that
+  are artefacts. Ingest itself stayed perfect (19,993 fixes, 0 missing, 0 duplicated).
+  **Prevention:** never edit sources during a measurement run (already in the project memory);
+  the artefact zone was retired locally.
+- **Symptom:** `pnpm dev` restarted the adapter endlessly ("GATEWAY_URL is not set"). **Cause:**
+  turbo runs every package's `dev` script. **Fix:** the adapter has no `dev` script; it runs only
+  where wired trackers exist (`pnpm --filter @busmitra/adapter start`).
 - **Watch for:** the laptop's Desktop is iCloud-synced; after a long sleep iCloud recreated the
   tree and left 255 "… 2" conflict copies (incl. `.git/index 2`). They were identical or stale
   and removed; `.gitignore` now refuses them. Moving the repository out of `~/Desktop` is the
@@ -237,6 +250,9 @@ Telemetry and Sentry are off without their environment variables.
 
 ## Carried forward
 
+- A clean multi-hour live learning run (no source edits, `pnpm dev` untouched) with `pnpm sim run
+  --minutes 180` then `pnpm sim deadzone-check --learn`: the one-hour attempt was spoiled by
+  dev-server restarts and gave ≤ 3 observations per zone (fewer than minPts 4).
 - **Soak gate:** ≥ 3 dead zones learned and classified correctly on real routes — needs ~2 weeks
   of real buses (Stage 9 pilot); `pnpm --filter @busmitra/engine deadzone` + the Health page.
 - Grafana Cloud: create the stack, set `OTEL_EXPORTER_OTLP_*`, import the dashboard, provision
