@@ -202,3 +202,24 @@ input[type="text"] {
   padding: 8px 0;
   font-size: 14px;
 }
+
+/* Stage 9: language switch (EN · తెలుగు · हिन्दी) */
+.langs {
+  display: flex;
+  gap: 0.4rem;
+  justify-content: flex-end;
+  margin: -0.25rem 0 0.75rem;
+}
+.langs button {
+  background: transparent;
+  border: 1px solid currentColor;
+  border-radius: 999px;
+  color: inherit;
+  font-size: 0.85rem;
+  opacity: 0.6;
+  padding: 0.2rem 0.7rem;
+}
+.langs button[aria-pressed="true"] {
+  opacity: 1;
+  font-weight: 700;
+}

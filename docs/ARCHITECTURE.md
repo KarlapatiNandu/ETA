@@ -160,6 +160,8 @@ Redis holds authoritative *current* state; Postgres holds authoritative *histori
                       └──────────────┘
 ```
 
+*As built (Stage 9):* the "adapter — same contract" box is `apps/adapter`, a TCP service that speaks GT06 to the trackers and the driver app's signed HTTP contract to the gateway (ADR-0008).
+
 **Why the engine is separate from the gateway:** the gateway must never block. If ETA recomputation gets slow (an OSRM call times out, a route has 4,000 vertices), it must not add a millisecond to the SSE fan-out or the ingest ack. Separate process, separate failure domain, separate scaling knob.
 
 ---
@@ -380,6 +382,8 @@ else:
 *As built (Stage 7, `apps/engine/src/workers/tickets.ts`):* every 30 s, an open `signal_outages` row outside any known dead zone, older than five minutes, **on a trip that is still running or dark**, becomes one `signal_lost` ticket (`one_open_signal_ticket`). It resolves itself when the bus reports again ("signal came back after 7 min") or when the trip ends while still silent. The ticket is paperwork for the TD; it notifies no student — the T2 comes from the presence transition itself (Stage 6).
 
 **Learning the dead zones.** Every `DARK → RECOVERED` transition writes an outage record with entry point, exit point and duration. A nightly job runs DBSCAN (ε = 150 m, minPts = 4) over outage entry points, builds a buffered convex hull, and writes a `dead_zones` polygon with `confidence` and `avg_outage_s`.
+
+*As built (Stage 8, `apps/engine/src/workers/deadzone.ts`, `packages/geo/src/cluster.ts`):* only outages that really recovered count (an outage closed by its trip's end has no exit point and is ignored), at most 15 minutes long, over the last 60 days, seen on at least 2 trips; the hull is grown 60 m because an entry point is the last fix *before* the silence. Zones are updated in place (an admin's name survives), and retired rather than deleted when the network improves. Verified against simulator-injected zones: every zone long enough to turn a bus DARK was found, and nothing else (SCHEMA §3).
 
 After roughly two weeks of operation the system knows every dead zone on every route, and stops alarming about the ones that are normal. **A recurring outage becomes a predicted, explained event rather than a scary red banner** — that is the difference between a system students trust and one they learn to ignore.
 
@@ -610,6 +614,10 @@ Per student per year this moves from ₹18 to roughly **₹19–20** against the
 - **Student pinned locations** are stored coarsened (≈100 m precision is ample for a walking ETA) and are never exposed to admins or other students.
 - **Every admin action** — announcements, CSV applies, out-of-commission flags — writes to `audit_log` with before/after state. A system that can buzz 300 phones needs a paper trail.
 - **CSV upload is two-phase:** upload → parse → **diff preview** → explicit confirm → apply. No CSV ever auto-publishes.
+- **Push endpoints are allow-listed** (Stage 9): a student's subscription endpoint must be `https://` on a real push service (FCM, Mozilla autopush, Apple, WNS). The engine POSTs to whatever is registered, so an unrestricted URL would let anyone aim the engine at an internal address.
+- **Response headers** (Stage 9): the web app sends a per-request CSP with a nonce and `strict-dynamic` (every origin it talks to is named; `apps/web/lib/csp.ts`), HSTS, `nosniff`, `frame-ancestors 'none'`, a strict Permissions-Policy; the gateway answers everything `no-store`, `nosniff`, `default-src 'none'`; the driver app's static host sends its own policy (`apps/driver/public/_headers`).
+- **Wired trackers** (Stage 9, ADR-0008) cannot sign requests. The GT06 adapter holds each tracker's own secret and signs as that tracker, so pairing, rotation, rate limits and unpairing work exactly as for phones. A GT06 box identifies itself only by IMEI in clear — bounded by the same plausibility gates as a stolen phone secret.
+- **Error reporting sends no personal data**: Sentry is errors-only, with user, cookies, headers, bodies, query strings and stack-frame variables all switched off (Sentry 11 collects them by default).
 
 ---
 
@@ -632,3 +640,28 @@ Per student per year this moves from ₹18 to roughly **₹19–20** against the
 | Malformed CSV | Two-phase upload rejects at preview | Nothing. No notification is sent. |
 
 **The governing rule:** *the app never fabricates a position or an ETA.* Every degraded state has a designed, honest, specific presentation. A stale timestamp shown plainly beats a confident wrong answer, every time.
+
+---
+
+## 12. Observability (as built, Stage 8)
+
+The §4 guardrail — "every stage emits an OTel span; alert if p95 staleness exceeds 8 s for five
+minutes" — is `packages/telemetry` plus five alert rules (ADR-0009).
+
+- **One trace per fix.** The gateway's ingest span → `stream:pings` (`tp` field) → the geo
+  worker's `geo.step` → `stream:events` → the gateway's `sse.fanout`, the ETA worker's
+  `eta.compute`, the notify worker's `notify.record` → its `notify.deliver` (measured locally:
+  ingest → fan-out 17 ms). Telemetry is off without `OTEL_EXPORTER_OTLP_ENDPOINT`; production
+  samples 10 %.
+- **Metrics:** fix → frame age at fan-out, SSE connections, ingest pings, consumer lag and
+  pending per group, dead letters, buses by presence, buses silent 15+ min, push POST time, sends
+  by channel/outcome, notification → accepted. History (ETA MAE, delivery, dead-zone frequency)
+  comes from the aggregate `obs_*` views (SCHEMA §13).
+- **Alerts** (`ALERTS` in `packages/config`, mirrored in `infra/grafana/provisioning/alerting`):
+  fix → frame p95 > 8 s for 5 min · consumer lag > 1,000 · push refusals > 10 % over an hour ·
+  any bus silent 15+ min on an open trip · any dead letter.
+- **Two places to look:** Grafana (*Bus Mitra — overview*, for campus IT) and the console's
+  **Health** page (`/admin/health`, for the Transport Department) — the same rules, computed on
+  request from Redis and the views, plus the learned dead zones on a map.
+- **Errors:** Sentry on the web app and the driver app (loaded only when a DSN is set: without
+  one no student downloads a byte of it).

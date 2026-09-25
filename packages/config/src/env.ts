@@ -78,6 +78,31 @@ export const gatewayEnv = z.object({
   DRIVER_ORIGIN: url.default("http://localhost:5173"),
 });
 
+/**
+ * Stage 8 observability. All optional: without an OTLP endpoint telemetry is a no-op. The
+ * standard OTEL_* variables are read by the exporters themselves; they are listed here so
+ * .env.example documents them and a typo fails loudly.
+ */
+export const telemetryEnv = z.object({
+  /** http://localhost:4318 for the local Grafana stack; the Grafana Cloud OTLP gateway in prod */
+  OTEL_EXPORTER_OTLP_ENDPOINT: url.optional(),
+  /** e.g. `Authorization=Basic <base64 instance:token>` for Grafana Cloud. SECRET */
+  OTEL_EXPORTER_OTLP_HEADERS: z.string().optional(),
+  /** `parentbased_traceidratio` with OTEL_TRACES_SAMPLER_ARG=0.1 in production */
+  OTEL_TRACES_SAMPLER: z.string().optional(),
+  OTEL_TRACES_SAMPLER_ARG: z.string().optional(),
+});
+
+/** Stage 9 hardware adapter (apps/adapter). */
+export const adapterEnv = z.object({
+  /** the gateway the adapter signs requests to, exactly as a phone would */
+  GATEWAY_URL: url,
+  /** TCP port the GT06 trackers dial (their `SERVER` command) */
+  ADAPTER_PORT: z.coerce.number().int().positive().default(5023),
+  /** JSON: { "<imei>": { "secret", "moving_interval_s", "idle_interval_s" } }. SECRET */
+  ADAPTER_DEVICES_FILE: nonEmpty,
+});
+
 export class EnvError extends Error {
   readonly issues: { variable: string; problem: string }[];
   constructor(issues: { variable: string; problem: string }[]) {

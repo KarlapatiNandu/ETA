@@ -45,6 +45,8 @@ Kept current as stages complete.
 - [M05 — Stops, search and personal ETA](modules/M05-search-eta.md) _(in progress: build done; stopwatch walk and the real-bus ETA soak open — the soak blocks Stage 6)_
 - [M07 — Admin console](modules/M07-admin-console.md) _(in progress: build done and browser-tested; TD usability session open)_
 - [M06 — Notification spine](modules/M06-notifications.md) _(in progress: built ahead of the Stage 5 gate; iPhone, phone latency, real SMS open)_
+- [M08 — Learning, observability and load](modules/M08-observability.md) _(built and measured; the real-route dead-zone soak open)_
+- [M09 — Production and hardware](modules/M09-production.md) _(built and proven locally; provisioning, pilot, physical tracker open)_
 
 ### Decisions
 - [ADR-0001 — The live channel is SSE on the Fastify gateway](decisions/ADR-0001-sse-live-channel.md)
@@ -53,15 +55,25 @@ Kept current as stages complete.
 - [ADR-0003 — Route versioning: immutable versions on a stable lineage](decisions/ADR-0003-route-versioning.md)
 - [ADR-0006 — Uniform claim responses: decoy challenges](decisions/ADR-0006-uniform-claim-responses.md)
 - [ADR-0007 — Confirmed sends and doorbells](decisions/ADR-0007-confirmed-sends-and-doorbells.md)
+- [ADR-0008 — The hardware adapter speaks GT06, as a separate service, signing like a phone](decisions/ADR-0008-gt06-hardware-adapter.md)
+- [ADR-0009 — Vendor-neutral telemetry, a console health page, k6 with SSE](decisions/ADR-0009-observability-and-load.md)
+- [ADR-0010 — Publish the route and stop data under ODbL](decisions/ADR-0010-route-data-licence.md) _(proposed)_
 
 ### Runbooks
 - [Bus not appearing](runbooks/bus-not-appearing.md)
 - [Student cannot claim their account](runbooks/student-cannot-claim.md)
 - [Live map not updating](runbooks/live-map-not-updating.md)
 - [CSV upload failed](runbooks/csv-upload-failed.md)
-- [Push not delivering](runbooks/push-not-delivering.md)
+- [Push not delivering](runbooks/push-not-delivering.md) (incl. a revoked VAPID key)
+- [Map says reconnecting — Redis down](runbooks/map-reconnecting-redis-down.md)
+- [History and console down — Postgres down](runbooks/history-and-console-down-postgres.md)
+- [Alerts late or missing — engine or worker died](runbooks/alerts-late-or-missing.md)
+- [ETAs wide or walking times missing — OSRM overloaded](runbooks/etas-wide-or-walking-times-missing.md)
+- [Deploying (and migrations, staged rollout)](runbooks/deploy.md)
+- [Rolling back (code, migrations, data)](runbooks/rollback.md)
 
 ### Benchmarks
 - [Ingest soak — 30 simulated buses, one hour (v1)](benchmarks/ingest-1h-30-buses-v1.md)
 - [ETA accuracy (v1) — simulated baseline; the real-bus soak is v2](benchmarks/eta-accuracy-v1.md)
 - [Alert latency (v1) — event → push in a browser, and a 600-student T0](benchmarks/alert-latency-v1.md)
+- [Load (v1) — 600 students + 1,000 headroom, 30 buses, a T0](benchmarks/load-300-v1.md)

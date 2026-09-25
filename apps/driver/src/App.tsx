@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useContext, useEffect, useMemo, useRef, useState } from "react";
 import type { TrackerMe } from "@busmitra/contracts";
 import { parsePairing, signedClient, type Pairing, type SignedClient } from "./lib/api.ts";
 import { kvGet, kvSet, openDb } from "./lib/idb.ts";
@@ -6,6 +6,7 @@ import { SurveyRecorder } from "./survey/recorder.ts";
 import { idbPingBuffer } from "./tracker/buffer.ts";
 import { watchGps, type Fix } from "./tracker/sampler.ts";
 import { browserWakeEnv, WakeLockKeeper, type WakeState } from "./tracker/wakelock.ts";
+import { initialLang, LANGS, LangContext, saveLang, useT, type Lang } from "./i18n.ts";
 import { TripSession, type SessionView } from "./trip/session.ts";
 
 const GATEWAY = import.meta.env.VITE_GATEWAY_URL ?? "http://localhost:4000";
@@ -20,6 +21,20 @@ interface Ctx {
 }
 
 export function App() {
+  const [lang, setLangState] = useState<Lang>(initialLang);
+  const setLang = (l: Lang) => {
+    saveLang(l);
+    setLangState(l);
+  };
+  return (
+    <LangContext.Provider value={{ lang, setLang }}>
+      <Root />
+    </LangContext.Provider>
+  );
+}
+
+function Root() {
+  const t = useT();
   const [db, setDb] = useState<IDBDatabase | null>(null);
   const [pairing, setPairing] = useState<Pairing | null | undefined>(undefined);
   const [bootError, setBootError] = useState<string | null>(null);
@@ -52,7 +67,7 @@ export function App() {
   if (!db || pairing === undefined)
     return (
       <Shell>
-        <p className="muted">Starting…</p>
+        <p className="muted">{t.starting}</p>
       </Shell>
     );
   if (!pairing) return <PairScreen db={db} onPaired={setPairing} />;
@@ -60,27 +75,34 @@ export function App() {
 }
 
 function Shell({ children, bus }: { children: React.ReactNode; bus?: string | null }) {
+  const { lang, setLang } = useContext(LangContext);
   return (
     <div className="app">
       <header>
         <h1>Bus Mitra · Driver</h1>
         {bus && <span className="bus">Bus {bus}</span>}
       </header>
+      <div className="langs" role="group" aria-label="Language">
+        {LANGS.map((l) => (
+          <button key={l.code} aria-pressed={lang === l.code} onClick={() => setLang(l.code)}>
+            {l.label}
+          </button>
+        ))}
+      </div>
       {children}
     </div>
   );
 }
 
 function PairScreen({ db, onPaired }: { db: IDBDatabase; onPaired: (p: Pairing) => void }) {
+  const t = useT();
   const [link, setLink] = useState("");
   const [err, setErr] = useState<string | null>(null);
   return (
     <Shell>
       <section className="panel">
-        <h2>Pair this phone</h2>
-        <p className="muted">
-          Open the pairing link from the Transport Department on this phone, or paste it here.
-        </p>
+        <h2>{t.pairTitle}</h2>
+        <p className="muted">{t.pairHelp}</p>
         <input
           type="text"
           value={link}
@@ -92,12 +114,12 @@ function PairScreen({ db, onPaired }: { db: IDBDatabase; onPaired: (p: Pairing) 
           className="big go"
           onClick={async () => {
             const p = parsePairing(link.slice(link.indexOf("#")));
-            if (!p) return setErr("That is not a pairing link.");
+            if (!p) return setErr(t.notAPairingLink);
             await kvSet(db, "pairing", p);
             onPaired(p);
           }}
         >
-          PAIR
+          {t.pairButton}
         </button>
       </section>
     </Shell>
@@ -119,6 +141,7 @@ function Paired({
   const [wake, setWake] = useState<WakeState>("off");
   const [online, setOnline] = useState(navigator.onLine);
   const [tab, setTab] = useState<"trip" | "survey">("trip");
+  const t = useT();
 
   const ctx = useMemo<Ctx>(() => {
     const client = signedClient(GATEWAY, pairing);
@@ -148,19 +171,13 @@ function Paired({
       const res = await ctx.client
         .request<TrackerMe & { error?: string }>("GET", "/v1/tracker/me")
         .catch(() => null);
-      if (!res)
-        return setMeError("Cannot reach the server. Trips you start will buffer until it is back.");
+      if (!res) return setMeError("cannotReach");
       if (res.status === 401) {
-        return setMeError(
-          res.json.error === "stale_timestamp"
-            ? "This phone's clock is wrong. Set date & time to automatic, then reopen the app."
-            : "This phone is not paired any more. Ask the transport office for a new link.",
-        );
+        return setMeError(res.json.error === "stale_timestamp" ? "clockWrong" : "unpaired");
       }
       // anything else is an error body, not a TrackerMe: rendering it would tell the driver
       // this phone has no bus, which is a lie they would act on
-      if (res.status !== 200)
-        return setMeError(`The server answered ${res.status}. Try again shortly.`);
+      if (res.status !== 200) return setMeError(`status:${res.status}`);
       setMe(res.json);
       setMeError(null);
       await ctx.session.restore(res.json);
@@ -176,18 +193,22 @@ function Paired({
     <Shell bus={me?.bus?.bus_number}>
       <div className="chips">
         <GpsChip fix={fix} error={view?.gpsError ?? null} />
-        <span className={`chip ${online ? "ok" : "bad"}`}>
-          {online ? "Network" : "No network — buffering"}
-        </span>
+        <span className={`chip ${online ? "ok" : "bad"}`}>{online ? t.network : t.noNetwork}</span>
         <WakeChip state={wake} />
       </div>
-      {meError && <p className="error">{meError}</p>}
+      {meError && (
+        <p className="error">
+          {meError.startsWith("status:")
+            ? t.serverAnswered(Number(meError.slice(7)))
+            : t[meError as "cannotReach" | "clockWrong" | "unpaired"]}
+        </p>
+      )}
       <div className="tabs" role="tablist">
         <button role="tab" aria-selected={tab === "trip"} onClick={() => setTab("trip")}>
-          Trip
+          {t.tabTrip}
         </button>
         <button role="tab" aria-selected={tab === "survey"} onClick={() => setTab("survey")}>
-          Route survey
+          {t.tabSurvey}
         </button>
       </div>
       {tab === "trip" ? (
@@ -198,48 +219,44 @@ function Paired({
       <button
         className="link"
         onClick={async () => {
-          if (view?.trip) return alert("End the trip before un-pairing.");
-          if (
-            !confirm(
-              "Remove this phone's pairing? You will need a new link from the transport office.",
-            )
-          )
-            return;
+          if (view?.trip) return alert(t.endBeforeUnpair);
+          if (!confirm(t.confirmUnpair)) return;
           await kvSet(db, "pairing", null);
           onUnpair();
         }}
       >
-        Device {pairing.deviceUid} · un-pair
+        {t.device(pairing.deviceUid)}
       </button>
     </Shell>
   );
 }
 
 function GpsChip({ fix, error }: { fix: Fix | null; error: string | null }) {
+  const t = useT();
   if (error) return <span className="chip bad">{error}</span>;
-  if (!fix) return <span className="chip warn">GPS: waiting</span>;
+  if (!fix) return <span className="chip warn">{t.gpsWaiting}</span>;
   const acc = Math.round(fix.accuracy);
   return (
-    <span className={`chip ${acc <= 25 ? "ok" : acc <= 60 ? "warn" : "bad"}`}>GPS ±{acc} m</span>
+    <span className={`chip ${acc <= 25 ? "ok" : acc <= 60 ? "warn" : "bad"}`}>{t.gps(acc)}</span>
   );
 }
 
 function WakeChip({ state }: { state: WakeState }) {
-  const text: Record<WakeState, [string, string]> = {
-    off: ["", "Screen lock: off"],
-    held: ["ok", "Screen stays on"],
-    released: ["warn", "Screen lock lost — reopen the app"],
-    unsupported: ["warn", "Keep the screen on manually"],
-    error: ["warn", "Screen lock refused (battery saver?)"],
+  const t = useT();
+  const cls: Record<WakeState, string> = {
+    off: "",
+    held: "ok",
+    released: "warn",
+    unsupported: "warn",
+    error: "warn",
   };
-  const [cls, label] = text[state];
-  return <span className={`chip ${cls}`}>{label}</span>;
+  return <span className={`chip ${cls[state]}`}>{t.wake[state]}</span>;
 }
 
-function ago(t: number | null): string {
-  if (!t) return "never";
-  const s = Math.round((Date.now() - t) / 1000);
-  return s < 60 ? `${s} s ago` : `${Math.floor(s / 60)} min ago`;
+function ago(t: ReturnType<typeof useT>, at: number | null): string {
+  if (!at) return t.never;
+  const s = Math.round((Date.now() - at) / 1000);
+  return s < 60 ? t.secondsAgo(s) : t.minutesAgo(Math.floor(s / 60));
 }
 
 function TripPanel({
@@ -251,6 +268,7 @@ function TripPanel({
   view: SessionView | null;
   session: TripSession;
 }) {
+  const t = useT();
   const [picked, setPicked] = useState<string | null>(null);
   const [err, setErr] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
@@ -265,38 +283,34 @@ function TripPanel({
     const s = view!.stats;
     return (
       <section className="panel">
-        <p className="onair">{trip.ending ? "ENDING TRIP…" : "ON TRIP"}</p>
+        <p className="onair">{trip.ending ? t.endingTrip : t.onTrip}</p>
         <p>{trip.routeName}</p>
         <div className="counter">
           <div>
             <b>{s.sent}</b>
-            <span>pings sent</span>
+            <span>{t.pingsSent}</span>
           </div>
           <div>
             <b>{s.buffered}</b>
-            <span>waiting to send</span>
+            <span>{t.waitingToSend}</span>
           </div>
         </div>
-        <p className="muted">
-          Last sent {ago(s.lastSentAt)} · reporting every {view!.cadenceS} s
-        </p>
+        <p className="muted">{t.lastSent(ago(t, s.lastSentAt), view!.cadenceS)}</p>
         {s.lastError && <p className="notice">{s.lastError}</p>}
         {trip.ending ? (
-          <p className="notice">
-            Sending the last {s.buffered} buffered pings, then the trip closes.
-          </p>
+          <p className="notice">{t.sendingLast(s.buffered)}</p>
         ) : (
           <button
             className="big stop"
             disabled={busy}
             onClick={async () => {
-              if (!confirm("End this trip?")) return;
+              if (!confirm(t.confirmEnd)) return;
               setBusy(true);
               await session.end();
               setBusy(false);
             }}
           >
-            END TRIP
+            {t.endTrip}
           </button>
         )}
       </section>
@@ -306,18 +320,18 @@ function TripPanel({
   if (!me)
     return (
       <section className="panel">
-        <p className="muted">Loading routes…</p>
+        <p className="muted">{t.loadingRoutes}</p>
       </section>
     );
   if (!me.bus)
     return (
       <section className="panel">
-        <p className="error">This phone is not assigned to a bus yet.</p>
+        <p className="error">{t.notAssigned}</p>
       </section>
     );
   return (
     <section className="panel">
-      <h2>Choose today&apos;s route</h2>
+      <h2>{t.chooseRoute}</h2>
       <div className="routes">
         {me.routes.map((r) => (
           <button
@@ -328,14 +342,14 @@ function TripPanel({
           >
             {r.name}
             <small>
-              {r.direction === "inbound" ? "to campus" : "from campus"} · v{r.version}
+              {r.direction === "inbound" ? t.toCampus : t.fromCampus} · v{r.version}
             </small>
           </button>
         ))}
-        {!me.routes.length && <p className="muted">No published routes yet.</p>}
+        {!me.routes.length && <p className="muted">{t.noRoutes}</p>}
       </div>
       {err && <p className="error">{err}</p>}
-      <p className="muted">Mount the phone, plug in the charger, keep this screen open.</p>
+      <p className="muted">{t.mount}</p>
       <button
         className="big go"
         disabled={!picked || busy}
@@ -352,13 +366,14 @@ function TripPanel({
           }
         }}
       >
-        START TRIP
+        {t.startTrip}
       </button>
     </section>
   );
 }
 
 function SurveyPanel({ ctx, busy }: { ctx: Ctx; busy: boolean }) {
+  const t = useT();
   const [label, setLabel] = useState("");
   const [recording, setRecording] = useState(false);
   const [count, setCount] = useState(0);
@@ -402,7 +417,7 @@ function SurveyPanel({ ctx, busy }: { ctx: Ctx; busy: boolean }) {
   if (busy)
     return (
       <section className="panel">
-        <p className="muted">End the trip before surveying a route.</p>
+        <p className="muted">{t.endBeforeSurvey}</p>
       </section>
     );
   return (

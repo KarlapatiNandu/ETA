@@ -73,6 +73,7 @@ const app = await buildApp({
   geocoder: createPhotonGeocoder(env.PHOTON_URL),
   vapidPublicKey: env.VAPID_PUBLIC_KEY,
   smsReceiptToken: env.SMS_RECEIPT_TOKEN,
+  production: env.NODE_ENV === "production",
   instanceId: `${hostname()}:${env.GATEWAY_PORT}`,
   surveyFiles: createSupabaseFileStore(
     env.SUPABASE_URL,

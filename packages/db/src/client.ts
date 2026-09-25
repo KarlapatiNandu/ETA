@@ -84,8 +84,31 @@ export function withContext<T>(
   });
 }
 
-export function createPgDb(connectionString: string): Db {
-  const pool = new pg.Pool({ connectionString, max: 10 });
+/**
+ * A pooled connection. An *idle* client whose connection dies (Postgres restarted, a failover,
+ * a network blip) makes the pool emit `error`; with no listener, Node treats that as an uncaught
+ * exception and the whole process exits — found in Stage 8, when a database restart killed the
+ * gateway and the engine together, live map included (ARCH §11 says the opposite must happen).
+ * The pool has already discarded the dead client; the next query opens a fresh one. So: log it,
+ * and carry on.
+ */
+export function createPgDb(
+  connectionString: string,
+  opts: { max?: number; onIdleError?: (err: Error) => void } = {},
+): Db {
+  const pool = new pg.Pool({ connectionString, max: opts.max ?? 10 });
+  pool.on(
+    "error",
+    opts.onIdleError ??
+      ((err) =>
+        console.error(
+          JSON.stringify({
+            t: new Date().toISOString(),
+            msg: "db: idle connection lost (the pool replaces it)",
+            error: err.message,
+          }),
+        )),
+  );
   return {
     query: async (sql, params) => pool.query(sql, params) as never,
     async tx(fn) {

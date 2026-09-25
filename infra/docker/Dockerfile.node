@@ -1,0 +1,32 @@
+# One image recipe for the Node services (BUILD_PLAN Stage 9): gateway, engine, adapter.
+#
+#   docker build -f infra/docker/Dockerfile.node --build-arg APP=gateway -t busmitra-gateway .
+#
+# The services run their TypeScript sources directly (Node 22's type stripping, as `pnpm start`
+# does), so there is no build step — and no node_modules copy of a workspace package: pnpm keeps
+# them as symlinks to packages/*, and Node only strips types outside node_modules.
+FROM node:22-alpine AS base
+RUN corepack enable
+WORKDIR /repo
+
+FROM base AS install
+ARG APP
+# (not `pnpm fetch`: it fills node_modules/.pnpm with every package in the lockfile, Next.js
+# included, and the image ends up at ~950 MB)
+COPY . .
+# the image's workspace is the server side only; versions still come from the lockfile
+RUN printf 'packages:\n  - "packages/*"\n  - "apps/engine"\n  - "apps/gateway"\n  - "apps/adapter"\n' > pnpm-workspace.yaml \
+ && rm -rf apps/simulator \
+ && pnpm install --prod --ignore-scripts --no-frozen-lockfile --filter "@busmitra/${APP}..."
+
+FROM base AS run
+ARG APP
+ARG ENTRY=src/main.ts
+ENV NODE_ENV=production APP=${APP} ENTRY=${ENTRY}
+COPY --from=install --chown=node:node /repo /repo
+USER node
+WORKDIR /repo/apps/${APP}
+# SIGTERM on deploy: the gateway closes every SSE stream and deletes its key, the engine leaves
+# its unacked entries pending for the next start (ARCH §7, §11)
+STOPSIGNAL SIGTERM
+CMD ["sh", "-c", "exec node \"$ENTRY\""]

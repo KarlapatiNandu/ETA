@@ -69,6 +69,11 @@ export const TrackerMe = z.object({
   bus: z.object({ id: z.uuid(), bus_number: z.string() }).nullable(),
   routes: z.array(TrackerRoute),
   live_trip: z.object({ id: z.uuid(), route_id: z.uuid(), started_at: z.string() }).nullable(),
+  /**
+   * Stage 9 (additive): the bus's regular route. A wired tracker has no driver to pick one, so
+   * the hardware adapter starts its ignition-driven trips here. Optional: older gateways omit it.
+   */
+  default_route_id: z.uuid().nullable().optional(),
   /** gateway clock, so a phone with a wrong clock can be told before its pings bounce */
   server_time: z.iso.datetime({ offset: true }),
 });

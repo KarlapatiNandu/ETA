@@ -37,6 +37,14 @@ export default tseslint.config(
     },
   },
   {
+    // k6 load scripts (Stage 8) run in k6's JavaScript runtime, not Node or a browser: these are
+    // its globals (environment, the virtual-user number, reading a file at init)
+    files: ["tests/load/**/*.js"],
+    languageOptions: {
+      globals: { __ENV: "readonly", __VU: "readonly", __ITER: "readonly", open: "readonly" },
+    },
+  },
+  {
     // Invariant 13: packages/geo is pure — no clock, no randomness, so traces replay exactly.
     // (Its tsconfig has no node types, which already rules out process/fs/timers.)
     files: ["packages/geo/src/**/*.ts"],

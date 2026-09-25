@@ -29,6 +29,7 @@
     "zod": "^4.6.5"
   },
   "exports": {
-    "./trackers": "./src/services/trackers.ts"
+    "./trackers": "./src/services/trackers.ts",
+    "./testing": "./src/testing.ts"
   }
 }

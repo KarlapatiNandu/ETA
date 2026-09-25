@@ -27,6 +27,9 @@ export interface RunOptions {
   airplane: { bus: number; fromMin: number; toMin: number }[];
   /** seconds between bus starts */
   staggerS: number;
+  /** send attempts per batch before the simulated phone gives up (default 8); a real driver
+   *  app buffers for as long as it has to, so outage drills raise it (Stage 8) */
+  maxAttempts?: number;
   log: (msg: string) => void;
 }
 
@@ -188,12 +191,16 @@ export async function runFleet(
       for (const b of sim.batches) {
         if (b.sendAt > end) break; // the run is over; unsent fixes are not expected anywhere
         await sleepUntil(b.sendAt);
-        const out = await sendBatch(client, {
-          device_uid: client.deviceUid,
-          trip_id: tripId,
-          cadence_s: b.cadenceS,
-          pings: b.pings,
-        });
+        const out = await sendBatch(
+          client,
+          {
+            device_uid: client.deviceUid,
+            trip_id: tripId,
+            cadence_s: b.cadenceS,
+            pings: b.pings,
+          },
+          { maxAttempts: o.maxAttempts },
+        );
         report.batchesSent++;
         if (b.kind === "duplicate") report.duplicateBatchesSent++;
         if (b.kind === "flush") report.flushBatchesSent++;

@@ -1,0 +1,14 @@
+# Cloudflare Pages response headers for the driver app (BUILD_PLAN Stage 9). The app is a static
+# bundle: no inline scripts, so script-src needs no nonce. It talks to the gateway only.
+# Replace api.busmitra.in if the gateway lives elsewhere (it must match VITE_GATEWAY_URL).
+/*
+  Content-Security-Policy: default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' data:; connect-src 'self' https://api.busmitra.in https://*.ingest.sentry.io; worker-src 'self'; manifest-src 'self'; object-src 'none'; base-uri 'self'; form-action 'self'; frame-ancestors 'none'; upgrade-insecure-requests
+  Strict-Transport-Security: max-age=63072000; includeSubDomains; preload
+  X-Content-Type-Options: nosniff
+  X-Frame-Options: DENY
+  Referrer-Policy: no-referrer
+  Permissions-Policy: geolocation=(self), screen-wake-lock=(self), camera=(), microphone=(), payment=()
+  Cross-Origin-Opener-Policy: same-origin
+
+/sw.js
+  Cache-Control: no-cache

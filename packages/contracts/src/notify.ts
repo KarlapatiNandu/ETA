@@ -79,9 +79,39 @@ export interface UserFrames {
 
 // ── student API (Stage 6) ────────────────────────────────────────────────
 
+/**
+ * The push services browsers actually hand out endpoints on (Chrome/Edge/Android → FCM, Firefox
+ * → Mozilla autopush, Safari/iOS → Apple, legacy Edge → WNS). The engine POSTs to whatever
+ * endpoint a student registers, so an unrestricted URL would let anyone make the engine call an
+ * internal address (SSRF) — Stage 9 hardening. HTTPS only, these hosts only.
+ */
+export const PUSH_SERVICE_HOSTS = [
+  /^fcm\.googleapis\.com$/,
+  /^([a-z0-9-]+\.)*push\.services\.mozilla\.com$/,
+  /^([a-z0-9-]+\.)*push\.apple\.com$/,
+  /^([a-z0-9-]+\.)*notify\.windows\.com$/,
+] as const;
+
+export function isPushServiceEndpoint(url: string): boolean {
+  try {
+    const u = new URL(url);
+    return (
+      u.protocol === "https:" &&
+      !u.port &&
+      !u.username &&
+      PUSH_SERVICE_HOSTS.some((h) => h.test(u.hostname))
+    );
+  } catch {
+    return false;
+  }
+}
+
 /** POST /v1/push/subscriptions — what PushSubscription.toJSON() gives, plus install state. */
 export const PushSubscribe = z.object({
-  endpoint: z.url().max(1000),
+  endpoint: z
+    .url()
+    .max(1000)
+    .refine(isPushServiceEndpoint, "not a push service this app can deliver to"),
   keys: z.object({ p256dh: z.string().min(1).max(200), auth: z.string().min(1).max(100) }),
   /** installed PWA (display-mode: standalone); iOS delivers push only to these */
   standalone: z.boolean().optional(),

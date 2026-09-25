@@ -23,6 +23,9 @@
       "path": "packages/telemetry"
     },
     {
+      "path": "apps/adapter"
+    },
+    {
       "path": "apps/engine"
     },
     {

@@ -22,3 +22,13 @@ infra/supabase/migrations/
 *roster*.csv
 !tests/fixtures/**/*.csv
 *.tsbuildinfo
+# macOS / iCloud Drive conflict copies ("package 2.json", "src 2/"): this folder lives on a synced
+# Desktop, which re-creates files after a sync conflict. Never a real source file here.
+* [0-9]
+* [0-9].*
+# k6 load-run output: minted tokens, throwaway certs, logs (apps/simulator/src/load/run.ts)
+tests/load/.run/
+# Vite dependency pre-bundle cache
+**/.vite/
+# restore-drill working directory (infra/scripts/restore-drill.sh)
+.restore-drill.*/

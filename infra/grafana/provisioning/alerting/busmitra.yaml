@@ -58,7 +58,7 @@ groups:
         for: 2m
         annotations:
           summary: "A worker is not keeping up with its stream: the live map, ETAs or notifications are going stale."
-          runbook: vault/runbooks/chaos-kill-worker.md
+          runbook: vault/runbooks/alerts-late-or-missing.md
         labels:
           service: busmitra
       - uid: busmitra-push-failures
@@ -136,6 +136,6 @@ groups:
         for: 1m
         annotations:
           summary: "stream:pings:dead is not empty: positions are missing from history and need a human."
-          runbook: vault/runbooks/chaos-kill-postgres.md
+          runbook: vault/runbooks/history-and-console-down-postgres.md
         labels:
           service: busmitra

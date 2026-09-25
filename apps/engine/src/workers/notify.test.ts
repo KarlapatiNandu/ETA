@@ -5,6 +5,7 @@ import type { PushMessage, PushSender, SmsMessage, SmsSender } from "@busmitra/n
 import type { StreamEntry } from "@busmitra/redis";
 import { createTestRedis, redisAvailable, type TestRedis } from "@busmitra/redis/testing";
 import {
+  closeInterrupted,
   deliverDue,
   processBroadcastEntries,
   processNotifyEntries,
@@ -219,6 +220,23 @@ describe.skipIf(!live)("notification spine (Stage 6)", () => {
       [id],
     );
     expect(ann.rows[0]!.notification_id).toBe(parents.rows[0]!.id);
+    // the rows the dead senders held are not left "undecided" for ever (Stage 8 chaos drill)
+    const open = async () =>
+      (
+        await db.query<{ n: number }>(
+          `SELECT count(*)::int n FROM notification_recipients
+            WHERE notification_id = $1 AND sent_at IS NOT NULL AND channel IS NULL
+              AND failure_reason IS NULL`,
+          [parents.rows[0]!.id as string],
+        )
+      ).rows[0]!.n;
+    const stranded = await open();
+    expect(stranded).toBeGreaterThan(0);
+    expect(stranded).toBeLessThanOrEqual(64); // one per sender in flight, never a whole batch
+    expect(await closeInterrupted(db, now + 60_000)).toBe(0); // a live sender may still be busy
+    expect(await closeInterrupted(db, now + 121_000)).toBe(stranded);
+    expect(await open()).toBe(0);
+    expect(await closeInterrupted(db, now + 121_000)).toBe(0);
     await db.query(
       `DELETE FROM push_subscriptions WHERE endpoint LIKE '%' AND user_id = ANY($1::text[]::uuid[])`,
       [crowd],

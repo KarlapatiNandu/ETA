@@ -1,0 +1,35 @@
+# TLS for the geo box (Stage 9). Cloudflare proxies tiles.<domain> and caches it (ADR-0005);
+# geo.<domain> is DNS-only (not proxied) and serves only the gateway and engine.
+{
+	email {$ACME_EMAIL}
+}
+
+tiles.{$DOMAIN} {
+	encode zstd gzip
+	header {
+		Cache-Control "public, max-age=86400, stale-while-revalidate=604800"
+		Access-Control-Allow-Origin "*"
+		X-Content-Type-Options nosniff
+	}
+	reverse_proxy tiles:8080
+}
+
+# OSRM and Photon are not public: every path starts with GEO_TOKEN, which only the gateway and
+# engine know (OSRM_CAR_URL=https://geo.<domain>/<token>/car, …). Node's fetch refuses URLs with
+# credentials in them, so a path secret rather than basic auth; access logs are off so the token
+# is never written to disk.
+geo.{$DOMAIN} {
+	log {
+		output discard
+	}
+	handle_path /{$GEO_TOKEN}/car/* {
+		reverse_proxy osrm-car:5000
+	}
+	handle_path /{$GEO_TOKEN}/foot/* {
+		reverse_proxy osrm-foot:5000
+	}
+	handle_path /{$GEO_TOKEN}/photon/* {
+		reverse_proxy photon:2322
+	}
+	respond 404
+}

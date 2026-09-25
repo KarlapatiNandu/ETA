@@ -319,9 +319,12 @@ CREATE TABLE dead_zones (
   p90_outage_s     integer NOT NULL,
   confidence       real NOT NULL,        -- 0..1, from cluster density
   last_observed_at timestamptz NOT NULL,
+  learned_at       timestamptz,          -- 0009: the learner run that last confirmed it; NULL = drawn by hand
+  retired_at       timestamptz,          -- 0009: no support left in the learning window
   created_at       timestamptz NOT NULL DEFAULT now()
 );
 CREATE INDEX ON dead_zones USING GIST (polygon);
+CREATE INDEX dead_zones_active ON dead_zones USING GIST (polygon) WHERE retired_at IS NULL;  -- 0009
 
 CREATE TABLE signal_outages (
   id            uuid PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -345,6 +348,10 @@ CREATE UNIQUE INDEX one_open_outage ON signal_outages (trip_id) WHERE recovered_
 Migration `0005_live_delivery` also adds `CHECK (confidence BETWEEN 0 AND 1)` on `dead_zones`. The presence sweeper opens a `signal_outages` row when a bus goes DARK, with `started_at` set to the **last fix before the silence** rather than the moment the sweeper noticed, and closes it with an exit point when the bus reports again. `dead_zone_id` is set when the entry point falls inside a learned zone.
 
 `signal_outages` is the raw observation log; the nightly DBSCAN job clusters it into `dead_zones`. This is the pair that turns "the bus vanished" into "the bus is in the Uppal underpass, back in about 90 seconds."
+
+**As learned (Stage 8, migration `0009_observability`, `apps/engine/src/workers/deadzone.ts`).** Every night at 02:30 IST the engine clusters the entry points of outages that *really recovered* (`exit_point IS NOT NULL`, at most 15 minutes, last 60 days) with DBSCAN (ε 150 m, minPts 4, from at least 2 different trips) and grows each cluster's convex hull by 60 m. A cluster overlapping an existing learned zone updates it **in place** — its id and its admin-given `label` survive; a new cluster inserts, labelled after the nearest stop; a learned zone with no support left is **retired, never deleted**, because `signal_outages.dead_zone_id` must keep pointing at the zone that explained it. Classification ignores retired zones. Zones drawn by hand (`learned_at IS NULL`) are never touched. `confidence = core-point share × (1 − 0.5^distinct days)`. `route_lineage_id` is set only when every sample came from one lineage. Changes to `dead_zones` are audited (`audit_row('polygon')`), so an admin's rename is on record.
+
+**An outage ends with its trip** (0009 trigger `trips_close_outages`): when a trip becomes `completed` or `cancelled`, its open outage is closed at the trip's end **with no exit point**. Such a row is a phone that died or a driver who ended the trip, not a place, and the learner never reads it.
 
 ---
 
@@ -876,6 +883,8 @@ Typed and centralised in `packages/redis/keys.ts`. Never construct a key string 
 | `stream:notify` | STREAM | maxlen 10 k | domain events for the notification spine: `leave_now` (Stage 5), the admin console's doorbells `announcement`, `ticket` (opened / resolved) and `event_day` (Stage 7), and `trip_start` from the driver's START (Stage 6) — each names a committed row the notify worker reads the truth from. Consumer group `notify` (Stage 6), which also reads `stream:events` for stop progress and signal alerts. They name a student or an admin action, so they never go on `stream:events` |
 | `bull:*` | — | — | BullMQ internals |
 
+Every stream entry holds its JSON in a field `d`; since Stage 8 it may also carry `tp`, the W3C traceparent of the span that wrote it, so one OpenTelemetry trace follows a fix from ingest to the SSE fan-out, the ETA worker and the notify worker (ADR-0009). Absent when telemetry is off; nothing reads behaviour from it.
+
 ---
 
 ## 11. Enum reference
@@ -924,3 +933,30 @@ CREATE TYPE survey_status_t AS ENUM ('uploaded','matched','discarded');
 | `audit_log` | 2 years | archived to Storage as Parquet |
 | `claim_challenges` | 24 hours | deleted hourly by `pg_cron` |
 | `signal_outages` | 1 year | retained — it is the dead-zone training set |
+
+---
+
+## 13. Observability views (Stage 8, migration `0009`)
+
+Aggregate-only views for the dashboards (`infra/grafana`) and the console's health page. They
+run with their owner's rights, so the metrics role reads them with **no grant on any table**:
+it can never see a student, a phone number, a position or a push endpoint (tested:
+`packages/db/src/observability.test.ts`).
+
+| View | One row per | Columns |
+|---|---|---|
+| `obs_eta_accuracy` | hour × route lineage × horizon | `n`, `mae_s`, `bias_s` (from `eta_predictions` with an actual arrival) |
+| `obs_notification_delivery` | hour × tier × category × channel | `recipients`, `attempted`, `delivered`, `failed`, `pending`, `p95_deliver_s` |
+| `obs_signal_outages` | day × in a known zone × recovered | `outages`, `avg_s`, `max_s` |
+| `obs_dead_zones` | zone | the zone's stats, `polygon` as GeoJSON, `outages_14d` |
+
+```sql
+CREATE ROLE busmitra_metrics NOLOGIN;   -- created by the migration; never given a login by it
+GRANT SELECT ON obs_eta_accuracy, obs_notification_delivery, obs_signal_outages, obs_dead_zones
+  TO busmitra_metrics;
+```
+
+The operator gives it a login in each environment (`ALTER ROLE busmitra_metrics LOGIN PASSWORD
+…`: `infra/scripts/observability.sh` locally, `vault/runbooks/deploy.md` in production). Redis
+stream entries may also carry a `tp` field — the W3C traceparent of the span that wrote them
+(§10) — which is metadata only.

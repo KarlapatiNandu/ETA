@@ -1,0 +1,33 @@
+# Fly.io — the GT06 hardware adapter (BUILD_PLAN Stage 9, ADR-0008). Raw TCP from the trackers.
+#   fly deploy -c infra/fly/adapter.toml
+# The devices file is a secret: fly secrets set ADAPTER_DEVICES_JSON="$(cat devices.json)" and
+# the entrypoint writes it to ADAPTER_DEVICES_FILE (see [processes]).
+app = "busmitra-adapter"
+primary_region = "bom"
+kill_signal = "SIGTERM"
+
+[build]
+  dockerfile = "../docker/Dockerfile.node"
+  [build.args]
+    APP = "adapter"
+    ENTRY = "src/main.ts"
+
+[env]
+  NODE_ENV = "production"
+  GATEWAY_URL = "https://api.busmitra.in"
+  ADAPTER_PORT = "5023"
+  ADAPTER_DEVICES_FILE = "/tmp/devices.json"
+
+[processes]
+  app = "sh -c 'printf %s \"$ADAPTER_DEVICES_JSON\" > /tmp/devices.json && exec node src/main.ts'"
+
+[[services]]
+  internal_port = 5023
+  protocol = "tcp"
+  processes = ["app"]
+  [[services.ports]]
+    port = 5023
+
+[[vm]]
+  size = "shared-cpu-1x"
+  memory = "256mb"

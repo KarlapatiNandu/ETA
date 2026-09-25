@@ -8,7 +8,7 @@ Real-time map, per-stop ETAs, and arrival alerts that tell you when to leave —
 Department of Information Technology · Chaitanya Bharathi Institute of Technology
 
 [![Status](https://img.shields.io/badge/status-in%20development-yellow)](tracker.md)
-[![Stage](https://img.shields.io/badge/stages%200%2C%204%2C%201%2C%202%2C%203%2C%205%2C%207%2C%206-built-yellow)](#roadmap)
+[![Stage](https://img.shields.io/badge/all%2010%20stages-built-yellow)](#roadmap)
 [![License](https://img.shields.io/badge/license-TBD-lightgrey)](#license)
 
 [![TypeScript](https://img.shields.io/badge/TypeScript-3178C6?logo=typescript&logoColor=white)](docs/ARCHITECTURE.md#2-tech-stack)
@@ -22,7 +22,9 @@ Department of Information Technology · Chaitanya Bharathi Institute of Technolo
 
 ---
 > [!IMPORTANT]
-> **Project status: Stages 0, 4, 1, 2, 3, 5, 7 and 6 are built and tested. Students can watch the fleet live, search any stop, follow a bus with a live ETA and a "leave in" countdown, and get alerts on their phone. The Transport Department has a working console.**
+> **Project status (2026-09-25): all ten stages are built and tested; what remains needs real buses, real phones, accounts or people.** Stage 8 added dead-zone learning, end-to-end tracing, dashboards, alerts and a health page in the console, and was measured: **600 students and a 1,000-student headroom run at p95 4.0–4.1 s from GPS fix to frame, a critical alert to all of them with zero duplicates, and five chaos drills (Redis, Postgres, a worker killed mid-send, OSRM flooded, a revoked push key) with no lost data** — two drills found real bugs, now fixed. Stage 9 added production configuration and images, a restore drill that rebuilds the database and proves it matches, a per-request CSP checked in a browser, a GT06 hardware-tracker adapter, a Telugu/Hindi driver app and the handover pack. **Not yet:** production is not provisioned, the pilot has not run, and ETA accuracy on real buses — the gate for leave-now alerts — is still unmeasured.
+>
+> **Stages 0, 4, 1, 2, 3, 5, 7 and 6 are built and tested. Students can watch the fleet live, search any stop, follow a bus with a live ETA and a "leave in" countdown, and get alerts on their phone. The Transport Department has a working console.**
 > Working today: everything below the student UI (identity with RLS, route capture and editing, a fleet simulator, signed ingest with offline buffering); the **live map** — every running bus over Server-Sent Events, gliding between fixes, amber and red when a bus stops reporting, and gone ten minutes later; **stop search** that forgives misspellings and finds stops near a locality; a **home pin** stored at ~100 m; **per-stop ETA ranges** with a confidence dot; and a **leave-now** evaluator that emits one event per student (delivery is Stage 6).
 > Verified on 2026-09-23 against the full local stack in a real browser: 30 buses on the map with a p95 of 4.0 s from GPS fix to pixel; all four presence states on time at both cadences with zero false alarms; a cut network and a SIGKILLed gateway both recover without a reload.
 > **TD console (2026-09-24):** fleet, drivers and QR tracker pairing; out of commission → ticket → back in service; a ticket queue with auto-opened signal-loss tickets; announcements with a live recipient count; event-day bus lists from a CSV with a rendered diff; a live fleet dashboard; an audit log. Every send states the number of students it will reach, and the gateway refuses it if that number has changed. Verified in a real browser.
@@ -80,6 +82,8 @@ Bus tracking is a solved problem — for regulators and for city transit. It is 
 | **Fleet console** ✅ | Live status of every bus, last-ping age, today's ETA accuracy; buses, drivers, QR pairing of tracker phones. |
 | **Announcements** ✅ | Tiered broadcasts to everyone, to first-years, to seniors, or to one route — with a recipient count shown before anything is sent. |
 | **Event-day lists** ✅ | Upload a CSV of buses running today; separate lists for juniors and seniors. Two-phase with a diff preview, so no malformed file ever reaches a student's phone. |
+| **System health** ✅ | One page with the five alert rules, live latency, processing backlog, notification delivery, ETA accuracy by route, and a map of the places buses routinely lose signal (rename them the way students know them). |
+| **Hardware trackers** 🟡 | Wired GT06 tracker boxes can replace drivers' phones through the adapter, with trips started by the ignition — built and tested against a software tracker; a physical one is pending. |
 | **Service tickets** ✅ | Mark a bus out of commission and it raises a tracked ticket and a critical alert (push + SMS); resolving it puts the bus back in service and tells the same students. |
 
 ## Design principles
@@ -150,7 +154,7 @@ Full topology, latency budget and failure-mode table: [`docs/ARCHITECTURE.md`](d
 
 ```bash
 pnpm install
-pnpm typecheck && pnpm lint && pnpm test   # 411 tests; database suites run on in-process Postgres (PGlite),
+pnpm typecheck && pnpm lint && pnpm test   # 568 tests; database suites run on in-process Postgres (PGlite),
                                            # Redis-backed suites are skipped unless a Redis is reachable
 ```
 
@@ -199,7 +203,7 @@ Transport Department matches and publishes it under Admin → Routes.
 
 ### Environment variables
 
-Every variable is listed and explained in [`.env.example`](.env.example), with its purpose, where to obtain it, and whether it is secret. The gateway and `pnpm env:check` refuse to start while any variable is missing or malformed, and they list each one by name. The groups are Supabase, Redis, geo services (OSRM car/foot, Photon, tiles), SMS (`console` in dev, `msg91` after DLT approval), gateway keys (`CLAIM_DECOY_KEY`, `TRACKER_SECRET_KEY`), and the `NEXT_PUBLIC_*` values for the web app.
+Every variable is listed and explained in [`.env.example`](.env.example), with its purpose, where to obtain it, and whether it is secret. The gateway and `pnpm env:check` refuse to start while any variable is missing or malformed, and they list each one by name. The groups are Supabase, Redis, geo services (OSRM car/foot, Photon, tiles), SMS (`console` in dev, `msg91` after DLT approval), gateway keys (`CLAIM_DECOY_KEY`, `TRACKER_SECRET_KEY`), the `NEXT_PUBLIC_*` values for the web app, and — all optional — telemetry (`OTEL_*`), Sentry DSNs and the hardware adapter (`GATEWAY_URL`, `ADAPTER_*`). Production secrets and where each lives are listed in [`docs/handover/campus-it.md`](docs/handover/campus-it.md).
 
 ### Useful commands
 
@@ -214,6 +218,13 @@ Every variable is listed and explained in [`.env.example`](.env.example), with i
 | `node --experimental-strip-types tests/e2e/{live-map,resilience,stage5}.ts` | Real-browser checks (headless Chrome) against the running stack |
 | `pnpm tracker provision --bus 14` · `pnpm tracker rotate --device …` | Pair a driver phone · rotate its secret |
 | `TEST_DATABASE_URL=postgresql://postgres:postgres@127.0.0.1:54322/postgres pnpm vitest run packages/db apps` | The database suites on the real Supabase Postgres 15 |
+| `bash infra/scripts/observability.sh` | Local Grafana + Prometheus + Tempo on :3001 (set `OTEL_EXPORTER_OTLP_ENDPOINT=http://localhost:4318`) |
+| `pnpm sim load --clients 600 --minutes 10` | The Stage 8 load run: k6 SSE clients + 30 buses + a T0 broadcast, then a verdict (stop `pnpm dev` first) |
+| `pnpm sim chaos redis\|postgres\|worker\|osrm\|vapid` | One chaos drill against real processes, with a measured verdict |
+| `pnpm sim deadzone-check --learn` | Run the dead-zone learner now and compare with the zones the simulator injected |
+| `pnpm --filter @busmitra/engine deadzone` | Run the nightly dead-zone learner once |
+| `pnpm tracker provision --bus 14 --kind hardware --device <IMEI>` | Pair a GT06 hardware tracker (prints its adapter entry) |
+| `bash infra/scripts/restore-drill.sh` | Back up the database, restore it into a fresh Supabase-shaped database, verify it matches |
 | `pnpm typecheck` · `pnpm lint` · `pnpm format` | Static checks |
 | `pnpm build` | Production builds (needs the `NEXT_PUBLIC_*` variables) |
 
@@ -231,7 +242,9 @@ apps/
   engine/       ✅ workers — roster, survey matching, geo, persister, presence, stop events,
                    per-stop ETA, leave-now, event-day lists + scheduled trips, signal-loss
                    tickets, scheduled announcements
-  simulator/    ✅ Synthetic fleet: seeds routes, drives buses, verifies the run
+  simulator/    ✅ Synthetic fleet: seeds routes, drives buses, verifies the run; the Stage 8
+                   load harness (`sim load`) and chaos drills (`sim chaos`)
+  adapter/      ✅ GT06 hardware-tracker adapter: TCP in, the phone's signed ingest contract out
 packages/
   contracts/    ✅ Zod schemas — ping, SSE, tracker API, roster + event-day CSV, auth, route
                    editor, admin console, notify events
@@ -239,12 +252,16 @@ packages/
   geo/          ✅ Snapping, progress, stop crossings, ETA — pure, 100% line coverage
   notify/       ✅ Tiering and per-user filters, Web Push (VAPID), SMS (console, MSG91) with receipts
   redis/        ✅ Typed key registry, fleet state, stream helpers
-  config/       ✅ Environment parsing and shared constants
+  config/       ✅ Environment parsing and shared constants (incl. the alert thresholds)
+  telemetry/    ✅ OpenTelemetry (traces across Redis streams, metrics), rolling latency windows
   ui/           ✅ Design tokens (both themes) and presence styles
-infra/          ✅ Docker compose, OSRM + tile prep, Supabase config, dev scripts
-docs/           ✅ Architecture, schema, build plan, outreach drafts
+infra/          ✅ Docker compose, OSRM + tile prep, Supabase config, dev scripts; Grafana dashboards
+                   and alert rules; Fly.io configs, the production geo box, the Node image;
+                   backup + restore-drill scripts
+docs/           ✅ Architecture, schema, build plan, outreach drafts; handover pack (driver sheet,
+                   TD handbook, student guide, campus-IT handover)
 vault/          ✅ Engineering log — modules, ADRs, runbooks, benchmarks
-tests/        ✅ e2e (headless-Chrome harnesses), recorded GPS fixtures; load tests in Stage 8
+tests/          ✅ e2e (headless-Chrome harnesses), recorded GPS fixtures, k6 load test (+ xk6-sse)
 ```
 
 ## Roadmap
@@ -261,8 +278,8 @@ Ten stages, each independently demonstrable, built in the order **0 → 4 → 1 
 | 6 | **5** | Stop search, location pinning, per-student ETA | 🟡 Built; stopwatch walk and the real-bus ETA soak pending (the soak gates Stage 6) |
 | 6 | **7** | Admin console, announcements, CSV lists, tickets | 🟡 Built and browser-tested; TD usability session pending |
 | 7 | **6** | Push + SMS, tiering, notification center, kill switch | 🟡 Built ahead of its gate; iPhone, phone latency, real SMS and the Stage 5 soak pending |
-| 8 | **8** | Dead-zone learning, observability, load testing | ⬜ Not started |
-| 9 | **9** | Production deployment, hardware trackers, pilot | ⬜ Not started |
+| 8 | **8** | Dead-zone learning, observability, load testing | 🔵 Built and measured (600 + 1,000 students, five chaos drills); the real-route dead-zone soak pending |
+| 9 | **9** | Production deployment, hardware trackers, pilot | 🟡 Built and proven locally (images, restore drill, CSP, GT06 adapter, handover); provisioning, pilot and a physical tracker pending |
 
 Rollout follows the project deck: **3 buses → measure ETA accuracy for two weeks → 10 buses → full fleet.** No fleet-wide hardware spend until the pilot proves accuracy on real routes.
 
@@ -274,6 +291,7 @@ Rollout follows the project deck: **3 buses → measure ETA accuracy for two wee
 | [`docs/SCHEMA.md`](docs/SCHEMA.md) | Every table, index, enum, RLS policy and Redis key |
 | [`docs/BUILD_PLAN.md`](docs/BUILD_PLAN.md) | The ten stages with exit criteria and a risk register |
 | [`vault/`](vault/) | Engineering log: per-module notes, ADRs, runbooks, benchmarks |
+| [`docs/handover/`](docs/handover/) | Driver sheet (EN/TE/HI), TD handbook, student guide, campus-IT handover |
 | [`Bus_Mitra.md`](Bus_Mitra.md) | Original project deck — problem framing, alternatives, cost model |
 
 ## Contributing

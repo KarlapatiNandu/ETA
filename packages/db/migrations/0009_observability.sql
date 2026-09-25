@@ -17,6 +17,11 @@ ALTER TABLE dead_zones ADD COLUMN retired_at timestamptz;
 ALTER TABLE dead_zones ADD COLUMN learned_at timestamptz;
 CREATE INDEX dead_zones_active ON dead_zones USING GIST (polygon) WHERE retired_at IS NULL;
 
+-- an admin renames a zone ("Uppal flyover underpass") and the student reads that name: audited
+-- like every admin mutation (the polygon is left out — the nightly learner redraws it)
+CREATE TRIGGER audit_dead_zones AFTER INSERT OR UPDATE OR DELETE ON dead_zones
+  FOR EACH ROW EXECUTE FUNCTION audit_row('polygon');
+
 -- ── an outage ends with its trip ──────────────────────────────────────────
 
 CREATE FUNCTION close_outages_on_trip_end() RETURNS trigger

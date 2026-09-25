@@ -8,11 +8,14 @@
  *   pnpm sim watch --minutes 14 --cut SIM-03,SIM-07        # judge presence transitions (Stage 3)
  *   pnpm sim eta-report --since 2026-09-23T14:00Z [--bus SIM-]   # ETA accuracy per horizon (Stage 5)
  *   pnpm sim deadzone-check [--learn] [--seed N]   # learned zones vs injected ones (Stage 8)
+ *   pnpm sim load --clients 600 --minutes 10 [--otlp http://localhost:4318]   # k6 load run (Stage 8)
+ *   pnpm sim chaos redis|postgres|worker|osrm|vapid   # a chaos drill with a verdict (Stage 8)
  *
  * Flags: --seed N (default 1), --no-dead-zones, --no-faults, --stagger S (seconds between bus
  * starts, default 10), --out report.json, --gateway URL.
  */
 import { readFileSync, writeFileSync } from "node:fs";
+import { resolve } from "node:path";
 import { parseArgs } from "node:util";
 import { z } from "zod";
 import { coreEnv, EnvError, gatewayEnv, loadEnv, redisEnv } from "@busmitra/config";
@@ -24,6 +27,8 @@ import { createRedis, keys } from "@busmitra/redis";
 import { sendBatch } from "./client.ts";
 import { replayTrace } from "./model.ts";
 import { verifyDeadZones } from "./deadzone.ts";
+import { runDrill, type Drill } from "./load/chaos.ts";
+import { runLoad } from "./load/run.ts";
 import { etaReport } from "./eta-report.ts";
 import { watchPresence } from "./presence-watch.ts";
 import { provisionFleet, runFleet } from "./run.ts";
@@ -61,12 +66,17 @@ const { positionals, values } = parseArgs({
     cut: { type: "string", default: "" },
     since: { type: "string" },
     learn: { type: "boolean", default: false },
+    clients: { type: "string", default: "600" },
+    otlp: { type: "string" },
+    keep: { type: "boolean", default: false },
     bus: { type: "string" },
   },
 });
 const gateway = values.gateway ?? `http://127.0.0.1:${env.GATEWAY_PORT}`;
 const db = createPgDb(env.DATABASE_URL);
 const redis = createRedis(env.REDIS_URL, "simulator");
+// pnpm runs this from apps/simulator; a relative --out means relative to where it was typed
+const outPath = (p: string) => resolve(process.env.INIT_CWD ?? ".", p);
 const log = (m: string) => console.log(`[${new Date().toISOString().slice(11, 19)}] ${m}`);
 
 try {
@@ -102,7 +112,10 @@ try {
     };
     console.log(JSON.stringify(out, null, 2));
     if (values.out)
-      writeFileSync(values.out, JSON.stringify({ ...out, perTrip: verdict.perTrip }, null, 2));
+      writeFileSync(
+        outPath(values.out),
+        JSON.stringify({ ...out, perTrip: verdict.perTrip }, null, 2),
+      );
     process.exitCode = verdict.ok && drained ? 0 : 1;
   } else if (cmd === "eta-report") {
     const rows = await etaReport(db, {
@@ -110,13 +123,50 @@ try {
       busPrefix: values.bus,
     });
     console.log(JSON.stringify(rows, null, 2));
-    if (values.out) writeFileSync(values.out, JSON.stringify(rows, null, 2));
+    if (values.out) writeFileSync(outPath(values.out), JSON.stringify(rows, null, 2));
+  } else if (cmd === "load") {
+    const jwtSecret = process.env.SUPABASE_JWT_SECRET;
+    if (!jwtSecret) throw new Error("load: SUPABASE_JWT_SECRET is not set");
+    const report = await runLoad(db, redis, keys, {
+      clients: Number(values.clients),
+      minutes: Number(values.minutes === "60" ? "10" : values.minutes),
+      buses: Number(values.buses),
+      seed: Number(values.seed),
+      gatewayPort: env.GATEWAY_PORT,
+      trackerKey: env.TRACKER_SECRET_KEY,
+      jwtSecret,
+      databaseUrl: env.DATABASE_URL,
+      otlp: values.otlp,
+      keepUsers: values.keep,
+      log,
+    });
+    console.log(JSON.stringify(report, null, 2));
+    if (values.out) writeFileSync(outPath(values.out), JSON.stringify(report, null, 2));
+  } else if (cmd === "chaos") {
+    const drill = positionals[1] as Drill;
+    if (!["redis", "postgres", "worker", "osrm", "vapid"].includes(drill)) {
+      throw new Error("usage: sim chaos redis|postgres|worker|osrm|vapid");
+    }
+    const jwtSecret = process.env.SUPABASE_JWT_SECRET;
+    if (!jwtSecret) throw new Error("chaos: SUPABASE_JWT_SECRET is not set");
+    const verdict = await runDrill(drill, db, redis, keys, {
+      gatewayPort: env.GATEWAY_PORT,
+      trackerKey: env.TRACKER_SECRET_KEY,
+      jwtSecret,
+      databaseUrl: env.DATABASE_URL,
+      vapidPublicKey: process.env.VAPID_PUBLIC_KEY,
+      osrmCarUrl: env.OSRM_CAR_URL,
+      osrmFootUrl: process.env.OSRM_FOOT_URL,
+      log,
+    });
+    console.log(JSON.stringify({ drill, ...verdict }, null, 2));
+    if (values.out) writeFileSync(outPath(values.out), JSON.stringify(verdict, null, 2));
   } else if (cmd === "deadzone-check") {
     // run the nightly learner now (it is idempotent), then compare with what the runs injected
     if (values.learn) log(`learned: ${JSON.stringify(await learnDeadZones(db))}`);
     const verdict = await verifyDeadZones(db, { seed: Number(values.seed) });
     console.log(JSON.stringify(verdict, null, 2));
-    if (values.out) writeFileSync(values.out, JSON.stringify(verdict, null, 2));
+    if (values.out) writeFileSync(outPath(values.out), JSON.stringify(verdict, null, 2));
     process.exitCode = verdict.ok ? 0 : 1;
   } else if (cmd === "watch") {
     const verdict = await watchPresence(redis, keys, db, {
@@ -125,7 +175,7 @@ try {
       log,
     });
     console.log(JSON.stringify({ ...verdict, transitions: verdict.transitions }, null, 2));
-    if (values.out) writeFileSync(values.out, JSON.stringify(verdict, null, 2));
+    if (values.out) writeFileSync(outPath(values.out), JSON.stringify(verdict, null, 2));
     process.exitCode = verdict.ok ? 0 : 1;
   } else if (cmd === "replay" && positionals[1]) {
     const trace = JSON.parse(readFileSync(positionals[1], "utf8"));

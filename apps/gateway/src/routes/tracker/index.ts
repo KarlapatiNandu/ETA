@@ -70,6 +70,7 @@ export async function trackerRoutes(app: FastifyInstance, deps: TrackerRouteDeps
       device_uid: d.deviceUid,
       bus: bus ? { id: bus.id, bus_number: bus.bus_number } : null,
       routes: routes.rows.map((r) => ({ ...r, version: Number(r.version) })),
+      default_route_id: bus?.default_route_id ?? null,
       live_trip: live
         ? {
             id: live.id,

@@ -115,7 +115,9 @@ campus-bus/
 │   │       ├── roster.ts        # CSV parse → diff → apply
 │   │       └── deadzone.ts      # nightly DBSCAN clustering
 │   │
-│   └── simulator/               # synthetic fleet — the dev/test workhorse
+│   ├── simulator/               # synthetic fleet — the dev/test workhorse
+│   │                            #   + `sim load` / `sim chaos`: the Stage 8 load and chaos harness
+│   └── adapter/                 # Stage 9: GT06 hardware trackers → the same signed ingest contract
 │
 ├── packages/
 │   ├── contracts/               # Zod schemas + types: ingest, SSE, API, CSV
@@ -124,20 +126,24 @@ campus-bus/
 │   ├── notify/                  # tiering, templates, web-push + SMS adapters
 │   ├── redis/                   # typed key registry, stream + fleet-state helpers
 │   ├── config/                  # Zod-parsed env, shared thresholds and constants
+│   ├── telemetry/               # Stage 8: OpenTelemetry setup, instruments, rolling windows
 │   └── ui/                      # shared components + design tokens
 │
 ├── infra/
 │   ├── docker/                  # compose files, Dockerfiles
 │   ├── osrm/                    # extract + preprocess scripts, car & foot profiles
-│   └── supabase/                # config.toml, seed.sql
+│   ├── supabase/                # config.toml, seed.sql
+│   ├── grafana/                 # Stage 8: dashboards, alert rules, datasource provisioning
+│   ├── fly/                     # Stage 9: Fly.io configs (gateway, engine, adapter)
+│   └── prod/geo/                # Stage 9: the production geo box (OSRM, Photon, tiles, Caddy)
 │
 ├── tests/
 │   ├── e2e/                     # Playwright
-│   ├── load/                    # k6
+│   ├── load/                    # k6 (+ xk6-sse, built in Docker); driven by `pnpm sim load`
 │   └── fixtures/                # recorded GPS traces — the geo regression corpus
 │
 ├── vault/                       # engineering log (see vault/README.md)
-├── docs/                        # ARCHITECTURE, SCHEMA, BUILD_PLAN, API
+├── docs/                        # ARCHITECTURE, SCHEMA, BUILD_PLAN, API; handover/ (Stage 9)
 └── README.md
 ```
 

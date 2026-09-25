@@ -1,0 +1,63 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="theme-color" content="#0b0d10" />
+    <title>Bus Mitra — offline</title>
+    <style>
+      :root {
+        color-scheme: dark light;
+      }
+      body {
+        margin: 0;
+        min-height: 100dvh;
+        display: grid;
+        place-items: center;
+        padding: 1.5rem;
+        font:
+          16px/1.5 system-ui,
+          sans-serif;
+        background: #0b0d10;
+        color: #e8eaed;
+      }
+      @media (prefers-color-scheme: light) {
+        body {
+          background: #f6f7f9;
+          color: #111418;
+        }
+      }
+      main {
+        max-width: 26rem;
+      }
+      h1 {
+        font-size: 1.4rem;
+        margin: 0 0 0.5rem;
+      }
+      p {
+        margin: 0.5rem 0;
+        opacity: 0.85;
+      }
+      button {
+        margin-top: 1rem;
+        font: inherit;
+        padding: 0.6rem 1.2rem;
+        border-radius: 999px;
+        border: 1px solid currentColor;
+        background: transparent;
+        color: inherit;
+      }
+    </style>
+  </head>
+  <body>
+    <main>
+      <h1>You're offline</h1>
+      <p>
+        The live map and ETAs need a connection, so Bus Mitra shows nothing rather than an old
+        position that might be wrong.
+      </p>
+      <p>Urgent alerts (your bus is not coming) still reach you by SMS.</p>
+      <form action="/"><button type="submit">Try again</button></form>
+    </main>
+  </body>
+</html>

@@ -63,6 +63,8 @@ export const NOTIFY = {
   /** concurrent transport calls */
   CONCURRENCY: 64,
   UNHEALTHY_AT: 5,
+  /** a claimed row still unfinished after this long belonged to a sender that died */
+  INTERRUPTED_AFTER_S: 120,
   BACKOFF_429_S: 60,
 } as const;
 
@@ -288,15 +290,6 @@ interface SubRow {
   auth: string;
 }
 
-async function pool<T>(items: T[], n: number, fn: (t: T) => Promise<void>) {
-  let i = 0;
-  await Promise.all(
-    Array.from({ length: Math.min(n, items.length) }, async () => {
-      while (i < items.length) await fn(items[i++]!);
-    }),
-  );
-}
-
 export interface DeliverReport {
   claimed: number;
   pushed: number;
@@ -313,48 +306,65 @@ export async function deliverDue(deps: NotifyDeps): Promise<DeliverReport> {
   const now = (deps.now ?? Date.now)();
   const nowIso = new Date(now).toISOString();
   const report: DeliverReport = { claimed: 0, pushed: 0, texted: 0, inAppOnly: 0 };
-  const { rows: due } = await deps.db.query<DueRow>(
-    `WITH due AS (
-       SELECT notification_id, user_id FROM notification_recipients
-        WHERE sent_at IS NULL AND deliver_after <= $1::timestamptz
-        ORDER BY deliver_after
-        LIMIT $2
-        FOR UPDATE SKIP LOCKED
-     ), claimed AS (
-       UPDATE notification_recipients r SET sent_at = $1::timestamptz
-         FROM due WHERE r.notification_id = due.notification_id AND r.user_id = due.user_id
-           AND r.sent_at IS NULL
-       RETURNING r.notification_id, r.user_id
-     )
-     SELECT c.notification_id, c.user_id, n.tier, n.title, n.body, n.collapse_tag, n.payload,
-            n.expires_at, p.phone_e164, n.created_at
-       FROM claimed c JOIN notifications n ON n.id = c.notification_id
-       JOIN profiles p ON p.id = c.user_id`,
-    [nowIso, NOTIFY.BATCH],
-  );
-  report.claimed = due.length;
-  if (!due.length) return report;
+  let budget: number = NOTIFY.BATCH;
 
-  const { rows: subs } = await deps.db.query<SubRow>(
-    `SELECT id, user_id, endpoint, p256dh, auth FROM push_subscriptions
-      WHERE user_id = ANY($1::text[]::uuid[]) AND failure_count < $2
-        AND (backoff_until IS NULL OR backoff_until <= $3::timestamptz)`,
-    [[...new Set(due.map((d) => d.user_id))], NOTIFY.UNHEALTHY_AT, nowIso],
-  );
-  const subsOf = new Map<string, SubRow[]>();
-  for (const s of subs) subsOf.set(s.user_id, [...(subsOf.get(s.user_id) ?? []), s]);
+  /**
+   * Claim ONE due recipient, with that student's healthy subscriptions. Each of CONCURRENCY
+   * senders claims its next row only when it is free, so a crash can cost at most the rows in
+   * flight — never a whole batch claimed up front and not yet sent (Stage 8 chaos drill: the
+   * old claim-1,000-then-send loop lost 540 of 600 buzzes to one SIGKILL). And no sender waits
+   * for another's slow push service.
+   */
+  const claimOne = async (): Promise<(DueRow & { subs: SubRow[] | null }) | null> => {
+    if (budget <= 0) return null;
+    budget--;
+    const { rows } = await deps.db.query<DueRow & { subs: SubRow[] | null }>(
+      `WITH due AS (
+         SELECT notification_id, user_id FROM notification_recipients
+          WHERE sent_at IS NULL AND deliver_after <= $1::timestamptz
+          ORDER BY deliver_after
+          LIMIT 1
+          FOR UPDATE SKIP LOCKED
+       ), claimed AS (
+         UPDATE notification_recipients r SET sent_at = $1::timestamptz
+           FROM due WHERE r.notification_id = due.notification_id AND r.user_id = due.user_id
+             AND r.sent_at IS NULL
+         RETURNING r.notification_id, r.user_id
+       )
+       SELECT c.notification_id, c.user_id, n.tier, n.title, n.body, n.collapse_tag, n.payload,
+              n.expires_at, p.phone_e164, n.created_at,
+              (SELECT json_agg(json_build_object('id', s.id, 'user_id', s.user_id,
+                        'endpoint', s.endpoint, 'p256dh', s.p256dh, 'auth', s.auth))
+                 FROM push_subscriptions s
+                WHERE s.user_id = c.user_id AND s.failure_count < $2
+                  AND (s.backoff_until IS NULL OR s.backoff_until <= $1::timestamptz)) AS subs
+         FROM claimed c JOIN notifications n ON n.id = c.notification_id
+         JOIN profiles p ON p.id = c.user_id`,
+      [nowIso, NOTIFY.UNHEALTHY_AT],
+    );
+    if (!rows[0]) {
+      budget = 0; // nothing due: every sender stops
+      return null;
+    }
+    report.claimed++;
+    return rows[0];
+  };
 
-  await pool(due, NOTIFY.CONCURRENCY, (r) => {
-    const tp = traceOfNotification.get(r.notification_id);
-    return tp
-      ? inSpan("notify.deliver", { parent: tp, attributes: { "busmitra.tier": r.tier } }, () =>
-          deliverOne(r),
-        )
-      : deliverOne(r);
-  });
+  const sender = async () => {
+    for (let r = await claimOne(); r; r = await claimOne()) {
+      const row = r;
+      const tp = traceOfNotification.get(row.notification_id);
+      await (tp
+        ? inSpan("notify.deliver", { parent: tp, attributes: { "busmitra.tier": row.tier } }, () =>
+            deliverOne(row, row.subs ?? []),
+          )
+        : deliverOne(row, row.subs ?? []));
+    }
+  };
+  await Promise.all(Array.from({ length: NOTIFY.CONCURRENCY }, sender));
   return report;
 
-  async function deliverOne(r: DueRow): Promise<void> {
+  async function deliverOne(r: DueRow, subs: SubRow[]): Promise<void> {
     const behaviour = TIER[r.tier];
     const accepted = () =>
       instruments
@@ -369,7 +379,7 @@ export async function deliverDue(deps: NotifyDeps): Promise<DeliverReport> {
       return;
     }
     let pushed = false;
-    const mine = deps.push ? (subsOf.get(r.user_id) ?? []) : [];
+    const mine = deps.push ? subs : [];
     if (!mine.length) notes.push(deps.push ? "no push subscription" : "push not configured");
     for (const s of mine) {
       const sentAt = Date.now();
@@ -478,6 +488,25 @@ function finish(
  * Sources that were published but never became a notification: the doorbell was lost between
  * the commit and the XADD. Re-planning them is safe — `source_key` makes it idempotent.
  */
+/**
+ * Rows a sender claimed but never finished: the engine died mid-send (Stage 8 chaos drill —
+ * SIGKILL mid-fan-out left 64 such rows, one per sender in flight). At-most-once means they are
+ * never sent again (ADR-0004), but they must not stay "undecided" for ever: the admin's delivery
+ * counts and the dashboards would be wrong. They are marked interrupted — honestly: the push may
+ * well have gone (in the drill, all 64 had reached the push service).
+ */
+export async function closeInterrupted(db: Queryable, now: number): Promise<number> {
+  const r = await db.query(
+    `UPDATE notification_recipients
+        SET failure_reason = 'interrupted: the engine stopped mid-send (the push may have been delivered)'
+      WHERE channel IS NULL AND failure_reason IS NULL AND sent_at IS NOT NULL
+        AND sent_at < $1::timestamptz - make_interval(secs => $2)
+      RETURNING 1`,
+    [new Date(now).toISOString(), NOTIFY.INTERRUPTED_AFTER_S],
+  );
+  return r.rows.length;
+}
+
 export async function recoverLost(
   deps: Pick<NotifyDeps, "db" | "redis" | "keys" | "now" | "log">,
 ): Promise<number> {
@@ -677,6 +706,8 @@ export async function runNotify(
         if (Date.now() - lastRecover > NOTIFY.RECOVER_EVERY_MS) {
           lastRecover = Date.now();
           await recoverLost(deps);
+          const n = await closeInterrupted(deps.db, (deps.now ?? Date.now)());
+          if (n) deps.log?.("notify: marked sends interrupted by a crash", { count: n });
         }
         let r: DeliverReport;
         do {

@@ -1,9 +1,11 @@
 import type { FastifyInstance } from "fastify";
+import { z } from "zod";
+import { withContext } from "@busmitra/db";
 import { ALERTS } from "@busmitra/config";
 import { pipelineHealth } from "@busmitra/engine/health";
 import type { Keys, Redis } from "@busmitra/redis";
 import type { AppDeps } from "../../../app.ts";
-import { requireAdmin } from "../../../plugins/auth.ts";
+import { contextOf, requireAdmin } from "../../../plugins/auth.ts";
 import { LATENCY_WINDOW_MS, type EventHub } from "../../stream/hub.ts";
 
 /**
@@ -129,6 +131,25 @@ export async function adminObservabilityRoutes(
       delivery: { last24h: delivery.rows, pushLastHour: { ok: pushOk, refused: pushRefused } },
       deadZones: { zones: zones.rows, outages14d: outages.rows },
     };
+  });
+}
+
+/**
+ * PATCH /v1/admin/dead-zones/:id — name a learned zone the way students know the place. The
+ * nightly learner keeps the name (it updates zones in place), and the rename is audited.
+ */
+export async function adminDeadZoneRoutes(app: FastifyInstance, deps: AppDeps) {
+  app.addHook("preHandler", requireAdmin(deps));
+  app.patch("/v1/admin/dead-zones/:id", async (req, reply) => {
+    const { id } = z.object({ id: z.uuid() }).parse(req.params);
+    const { label } = z
+      .object({ label: z.string().trim().min(1).max(80).nullable() })
+      .parse(req.body);
+    const r = await withContext(deps.db, contextOf(req), (q) =>
+      q.query(`UPDATE dead_zones SET label = $2 WHERE id = $1 RETURNING id, label`, [id, label]),
+    );
+    if (!r.rows[0]) return reply.code(404).send({ error: "not_found", message: "No such zone." });
+    return r.rows[0];
   });
 }
 

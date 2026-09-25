@@ -112,3 +112,24 @@ alerts come by SMS and everything else is in-app only. There is no server-side f
   replayed backfill, 600-student T0, revoked push → SMS, kill switch, every transport failing,
   quiet hours, stale tickets.
 - `tests/e2e/stage6.ts` — a real browser subscription through Google's push service, timed.
+
+## 6. The VAPID key was revoked or rotated (a leak, or a mistake)
+
+**Symptom:** *every* push fails at once with `push 403` (FCM) or `push 401` (Mozilla); the
+alert *Push failure rate above 10 %* fires; T0/T1 still arrive by SMS.
+
+**Measured (chaos drill 2026-09-24):** the engine restarted with a new VAPID pair under 50
+subscribed students; a T1 to all 50 → **50/50 pushes refused** by the (FCM-faithful) push sink,
+**50/50 delivered by SMS instead**, 50/50 notification-center rows, and the push-failure alert
+fired on `/admin/health` within the same minute.
+
+A subscription is bound to the key it was created with; nothing on the server can re-bind it.
+
+- **The rotation was a mistake** → put the old pair back on **both** gateway and engine and
+  redeploy. Subscriptions that failed fewer than 5 times recover by themselves.
+- **The old key leaked and must stay revoked** → keep the new pair. Each student's app notices
+  the key change on its next visit and re-subscribes without asking (`lib/push.ts` → `sameKey`);
+  until then T0/T1 go by SMS and everything is in the center. Consider a T2 announcement: "open
+  Bus Mitra once to keep getting alerts".
+
+Rehearse: `pnpm sim chaos vapid` (stop `pnpm dev` first).

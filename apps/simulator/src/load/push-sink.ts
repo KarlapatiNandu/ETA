@@ -16,6 +16,8 @@ import { createServer } from "node:https";
 
 export interface SinkStats {
   received: number;
+  /** POSTs refused because they were signed with a key the subscription was not made with */
+  refused: number;
   duplicates: number;
   perEndpoint: Record<string, number>;
   /** receive time (epoch ms) of each push, by endpoint id — for the delivery-latency figure */
@@ -30,8 +32,19 @@ export function pushLatency(rng: () => number, medianMs = 150): number {
   return Math.round(medianMs * Math.exp(0.9 * z));
 }
 
-export function startPushSink(opts: { port: number; keyFile: string; certFile: string }) {
-  const stats: SinkStats = { received: 0, duplicates: 0, perEndpoint: {}, firstAt: {} };
+/**
+ * `expectKey`: the VAPID public key the subscriptions were created with. Like FCM and Mozilla, the
+ * sink refuses (403) a push signed with any other key — what a rotated or revoked VAPID key looks
+ * like to the engine (Stage 8 chaos drill). Unset, every push is accepted.
+ */
+export function startPushSink(opts: {
+  port: number;
+  keyFile: string;
+  certFile: string;
+  expectKey?: string;
+}) {
+  const stats: SinkStats = { received: 0, refused: 0, duplicates: 0, perEndpoint: {}, firstAt: {} };
+  const state = { expectKey: opts.expectKey };
   const server = createServer(
     { key: readFileSync(opts.keyFile), cert: readFileSync(opts.certFile) },
     (req, res) => {
@@ -43,6 +56,14 @@ export function startPushSink(opts: { port: number; keyFile: string; certFile: s
       const id = req.url?.split("/push/")[1];
       if (req.method !== "POST" || !id) {
         res.writeHead(404).end();
+        return;
+      }
+      // `Authorization: vapid t=<jwt>, k=<public key>` (RFC 8292)
+      const k = /k=([A-Za-z0-9_-]+)/.exec(String(req.headers.authorization ?? ""))?.[1];
+      if (state.expectKey && k !== state.expectKey) {
+        stats.refused++;
+        req.resume();
+        res.writeHead(403).end("the VAPID key does not match the subscription");
         return;
       }
       // drain the (encrypted) body; the sink does not need to read it
@@ -60,6 +81,7 @@ export function startPushSink(opts: { port: number; keyFile: string; certFile: s
   server.listen(opts.port, "127.0.0.1");
   return {
     stats,
+    state,
     close: () => new Promise<void>((ok) => server.close(() => ok())),
   };
 }

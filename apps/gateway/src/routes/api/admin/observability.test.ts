@@ -121,4 +121,39 @@ describe.skipIf(!live)("GET /v1/admin/observability", () => {
       expect.objectContaining({ stream: "stream:notify", group: "notify", lag: 1001 }),
     );
   });
+
+  it("renames a learned zone, audited, and the name survives the nightly learner", async () => {
+    const z = await gw.db.query<{ id: string }>(
+      `INSERT INTO dead_zones (polygon, sample_count, avg_outage_s, p90_outage_s, confidence,
+                               last_observed_at, learned_at)
+       VALUES (ST_Buffer(ST_MakePoint(78.55, 17.37)::geography, 100)::geography, 5, 90, 120, 0.9,
+               now(), now()) RETURNING id`,
+    );
+    const id = z.rows[0]!.id;
+    const patch = (token: string, label: unknown) =>
+      gw.app.inject({
+        method: "PATCH",
+        url: `/v1/admin/dead-zones/${id}`,
+        payload: { label },
+        headers: { authorization: `Bearer ${token}` },
+      });
+    expect((await patch(studentToken, "x")).statusCode).toBe(404);
+    const res = await patch(adminToken, "  Uppal flyover underpass ");
+    expect(res.json()).toEqual({ id, label: "Uppal flyover underpass" });
+    const audit = await gw.db.query<{
+      action: string;
+      before: { label: null };
+      after: { label: string };
+    }>(
+      `SELECT action, before, after FROM audit_log WHERE entity = 'dead_zones' AND entity_id = $1 AND action = 'dead_zones.update'`,
+      [id],
+    );
+    expect(audit.rows[0]).toMatchObject({
+      before: { label: null },
+      after: { label: "Uppal flyover underpass" },
+    });
+    expect(audit.rows[0]!.after).not.toHaveProperty("polygon");
+    const body = (await get(adminToken)).json();
+    expect(body.deadZones.zones[0]).toMatchObject({ id, label: "Uppal flyover underpass" });
+  });
 });

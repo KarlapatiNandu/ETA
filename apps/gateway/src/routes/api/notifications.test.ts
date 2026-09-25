@@ -184,20 +184,62 @@ describe("push subscriptions", () => {
   });
   it("registers a browser, and moves an endpoint to whoever signs in on it", async () => {
     expect(
-      (await call(tokA, "POST", "/v1/push/subscriptions", sub("https://fcm.test/1"))).statusCode,
+      (
+        await call(
+          tokA,
+          "POST",
+          "/v1/push/subscriptions",
+          sub("https://fcm.googleapis.com/fcm/send/1"),
+        )
+      ).statusCode,
     ).toBe(201);
     expect(
-      (await call(tokB, "POST", "/v1/push/subscriptions", sub("https://fcm.test/1"))).statusCode,
+      (
+        await call(
+          tokB,
+          "POST",
+          "/v1/push/subscriptions",
+          sub("https://fcm.googleapis.com/fcm/send/1"),
+        )
+      ).statusCode,
     ).toBe(201);
     const rows = await gw.db.query(`SELECT user_id, is_standalone FROM push_subscriptions`);
     expect(rows.rows).toEqual([{ user_id: b, is_standalone: true }]);
     // A cannot remove B's
-    await call(tokA, "DELETE", "/v1/push/subscriptions", { endpoint: "https://fcm.test/1" });
+    await call(tokA, "DELETE", "/v1/push/subscriptions", {
+      endpoint: "https://fcm.googleapis.com/fcm/send/1",
+    });
     expect((await gw.db.query(`SELECT 1 FROM push_subscriptions`)).rows).toHaveLength(1);
     expect(
       (await call(tokA, "POST", "/v1/push/subscriptions", { endpoint: "not a url", keys: {} }))
         .statusCode,
     ).toBe(400);
+  });
+
+  it("refuses an endpoint that is not a real push service (the engine would POST to it: SSRF)", async () => {
+    for (const endpoint of [
+      "http://fcm.googleapis.com/fcm/send/x", // not https
+      "https://169.254.169.254/latest/meta-data",
+      "https://localhost:4000/v1/admin/announcements",
+      "https://fcm.googleapis.com.evil.example/x",
+      "https://fcm.googleapis.com:8443/x",
+      "https://user@fcm.googleapis.com/x",
+    ]) {
+      expect(
+        (await call(tokA, "POST", "/v1/push/subscriptions", sub(endpoint))).statusCode,
+        endpoint,
+      ).toBe(400);
+    }
+    for (const endpoint of [
+      "https://updates.push.services.mozilla.com/wpush/v2/x",
+      "https://web.push.apple.com/QGx",
+      "https://wns2-par02p.notify.windows.com/w/?token=x",
+    ]) {
+      expect(
+        (await call(tokA, "POST", "/v1/push/subscriptions", sub(endpoint))).statusCode,
+        endpoint,
+      ).toBe(201);
+    }
   });
 });
 

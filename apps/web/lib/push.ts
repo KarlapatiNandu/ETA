@@ -1,5 +1,6 @@
 "use client";
 import { gateway } from "./gateway";
+import { sameKey, urlBase64ToUint8Array } from "./push-key";
 
 /**
  * Push subscription lifecycle (BUILD_PLAN Stage 6): register the service worker, ask permission
@@ -29,14 +30,6 @@ export const isStandalone = () =>
   (window.matchMedia?.("(display-mode: standalone)").matches ||
     (navigator as Navigator & { standalone?: boolean }).standalone === true);
 
-function urlBase64ToUint8Array(base64: string): Uint8Array<ArrayBuffer> {
-  const padding = "=".repeat((4 - (base64.length % 4)) % 4);
-  const raw = atob((base64 + padding).replace(/-/g, "+").replace(/_/g, "/"));
-  const out = new Uint8Array(new ArrayBuffer(raw.length));
-  for (let i = 0; i < raw.length; i++) out[i] = raw.charCodeAt(i);
-  return out;
-}
-
 async function registration(): Promise<ServiceWorkerRegistration> {
   return navigator.serviceWorker.register("/sw.js", { scope: "/" });
 }
@@ -51,6 +44,23 @@ export async function pushState(token: string | undefined): Promise<PushState> {
   const reg = await registration();
   const sub = await reg.pushManager.getSubscription();
   if (!sub) return "off";
+  if (!sameKey(sub.options.applicationServerKey, publicKey)) {
+    // the server's key changed since this browser subscribed: drop the dead subscription and,
+    // since permission is already granted, subscribe again with the new key — no tap needed
+    await gateway("/v1/push/subscriptions", {
+      token,
+      method: "DELETE",
+      body: { endpoint: sub.endpoint },
+    }).catch(() => undefined);
+    await sub.unsubscribe().catch(() => undefined);
+    if (Notification.permission !== "granted") return "off";
+    const fresh = await reg.pushManager
+      .subscribe({ userVisibleOnly: true, applicationServerKey: urlBase64ToUint8Array(publicKey) })
+      .catch(() => null);
+    if (!fresh) return "off";
+    await send(fresh, token);
+    return "on";
+  }
   // re-send on every visit: cheap, and it heals a subscription the gateway pruned or moved
   await send(sub, token);
   return "on";

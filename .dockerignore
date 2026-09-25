@@ -1,0 +1,22 @@
+# build context for infra/docker/Dockerfile.node: sources only
+**/node_modules
+**/.next
+**/.next-dev
+**/dist
+**/coverage
+**/.turbo
+.git
+.env
+.env.*
+!.env.example
+infra/osrm/data
+infra/tiles/data
+infra/supabase/.branches
+infra/supabase/.temp
+tests/load/.run
+vault
+docs
+*.pptx
+# the web apps deploy elsewhere (Vercel, Cloudflare Pages): not in a server image
+apps/web
+apps/driver

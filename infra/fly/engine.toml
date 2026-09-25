@@ -1,0 +1,29 @@
+# Fly.io — the engine (BUILD_PLAN Stage 9). No public port: it only reads Redis streams and
+# writes Postgres and the push/SMS services.
+#   fly deploy -c infra/fly/engine.toml
+# ONE machine. Two engines split the geo consumer group, which per-trip state does not survive
+# (engine/geo.ts); every periodic job is a compare-and-set, so a brief overlap on deploy is safe.
+app = "busmitra-engine"
+primary_region = "bom"
+kill_signal = "SIGTERM"
+kill_timeout = "15s"
+
+[build]
+  dockerfile = "../docker/Dockerfile.node"
+  [build.args]
+    APP = "engine"
+    ENTRY = "src/main.ts"
+
+[deploy]
+  # stop the old engine before the new one starts: never two geo consumers
+  strategy = "immediate"
+
+[env]
+  NODE_ENV = "production"
+  OTEL_EXPORTER_OTLP_ENDPOINT = "https://otlp-gateway-prod-ap-south-1.grafana.net/otlp"
+  OTEL_TRACES_SAMPLER = "parentbased_traceidratio"
+  OTEL_TRACES_SAMPLER_ARG = "0.1"
+
+[[vm]]
+  size = "shared-cpu-1x"
+  memory = "1gb"

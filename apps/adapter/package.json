@@ -1,0 +1,26 @@
+{
+  "name": "@busmitra/adapter",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "node --env-file-if-exists=../../.env --watch src/main.ts",
+    "start": "node --env-file-if-exists=../../.env src/main.ts",
+    "typecheck": "tsc -p tsconfig.json",
+    "lint": "eslint src"
+  },
+  "dependencies": {
+    "@busmitra/config": "workspace:*",
+    "@busmitra/contracts": "workspace:*",
+    "zod": "^4.6.5"
+  },
+  "exports": {
+    "./fake-device": "./src/fake-device.ts",
+    "./gt06": "./src/gt06.ts"
+  },
+  "devDependencies": {
+    "@busmitra/db": "workspace:*",
+    "@busmitra/gateway": "workspace:*",
+    "@busmitra/redis": "workspace:*"
+  }
+}

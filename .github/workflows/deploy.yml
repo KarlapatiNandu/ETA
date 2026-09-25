@@ -1,0 +1,43 @@
+name: deploy
+# Manual production deploy in the order vault/runbooks/deploy.md prescribes: migrations →
+# engine → gateway. Never on push: a deploy is a decision (not between 07:00–09:30 or
+# 16:00–18:30 IST on a college day). Needs secrets PROD_DATABASE_URL and FLY_API_TOKEN.
+on:
+  workflow_dispatch:
+    inputs:
+      migrate:
+        description: apply pending migrations first
+        type: boolean
+        default: true
+      engine:
+        type: boolean
+        default: true
+      gateway:
+        type: boolean
+        default: true
+
+concurrency: production
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    environment: production
+    steps:
+      - uses: actions/checkout@v4
+      - uses: superfly/flyctl-actions/setup-flyctl@master
+      - name: migrations
+        if: inputs.migrate
+        run: |
+          mkdir -p infra/supabase/migrations && cp packages/db/migrations/*.sql infra/supabase/migrations/
+          npx -y supabase@2.117.0 db push --workdir infra --db-url "${{ secrets.PROD_DATABASE_URL }}"
+      - name: engine
+        if: inputs.engine
+        run: flyctl deploy -c infra/fly/engine.toml --remote-only
+        env: { FLY_API_TOKEN: "${{ secrets.FLY_API_TOKEN }}" }
+      - name: gateway
+        if: inputs.gateway
+        run: flyctl deploy -c infra/fly/gateway.toml --remote-only
+        env: { FLY_API_TOKEN: "${{ secrets.FLY_API_TOKEN }}" }
+      - name: smoke
+        if: inputs.gateway
+        run: curl -fsS https://api.busmitra.in/healthz

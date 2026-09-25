@@ -8,11 +8,12 @@ import type { SmsSender } from "@busmitra/notify";
 import type { Keys, Redis } from "@busmitra/redis";
 import { authHook } from "./plugins/auth.ts";
 import { otelPlugin } from "./plugins/otel.ts";
+import { securityHeaders } from "./plugins/security.ts";
 import { adminAnnouncementRoutes } from "./routes/api/admin/announcements.ts";
 import { adminAuditRoutes } from "./routes/api/admin/audit.ts";
 import { adminDashboardRoutes } from "./routes/api/admin/dashboard.ts";
 import { adminEventDayRoutes } from "./routes/api/admin/event-day.ts";
-import { adminObservabilityRoutes } from "./routes/api/admin/observability.ts";
+import { adminDeadZoneRoutes, adminObservabilityRoutes } from "./routes/api/admin/observability.ts";
 import { adminFleetRoutes } from "./routes/api/admin/fleet.ts";
 import { adminRosterRoutes } from "./routes/api/admin/roster.ts";
 import { adminRouteRoutes } from "./routes/api/admin/routes.ts";
@@ -70,6 +71,8 @@ export interface AppDeps {
   vapidPublicKey?: string;
   /** Stage 6: shared secret on the MSG91 delivery-receipt webhook */
   smsReceiptToken?: string;
+  /** Stage 9: production — HSTS on every response */
+  production?: boolean;
 }
 
 export async function buildApp(
@@ -94,6 +97,7 @@ export async function buildApp(
       : {}),
   });
   otelPlugin(app);
+  securityHeaders(app, { hsts: !!deps.production });
   app.addHook("onRequest", authHook(deps));
 
   app.setErrorHandler((err, req, reply) => {
@@ -135,6 +139,7 @@ export async function buildApp(
   await app.register(async (scope) => adminEventDayRoutes(scope, deps));
   await app.register(async (scope) => adminAuditRoutes(scope, deps));
   await app.register(async (scope) => adminDashboardRoutes(scope, deps));
+  await app.register(async (scope) => adminDeadZoneRoutes(scope, deps));
   await app.register(async (scope) => networkRoutes(scope, deps));
   const stage5 = {
     db: deps.db,

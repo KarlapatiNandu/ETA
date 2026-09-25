@@ -2,6 +2,7 @@
  * Tracker pairing from the command line, until the admin console's pairing screen (Stage 7).
  *
  *   pnpm --filter @busmitra/gateway tracker provision --bus 14 [--device <uid>]
+ *   pnpm --filter @busmitra/gateway tracker provision --bus 14 --kind hardware --device <IMEI>
  *   pnpm --filter @busmitra/gateway tracker rotate --device <uid>
  *
  * Prints the secret exactly once, inside a pairing link for the driver app. The secret is
@@ -31,7 +32,11 @@ try {
 
 const { positionals, values } = parseArgs({
   allowPositionals: true,
-  options: { bus: { type: "string" }, device: { type: "string" } },
+  options: {
+    bus: { type: "string" },
+    device: { type: "string" },
+    kind: { type: "string", default: "driver_phone" },
+  },
 });
 const db = createPgDb(env.DATABASE_URL);
 const ctx = { actorId: null, ip: null, userAgent: "tracker-cli" };
@@ -40,13 +45,24 @@ const link = (uid: string, secret: string) =>
 
 try {
   if (positionals[0] === "provision" && values.bus) {
+    const kind = values.kind === "hardware" ? "hardware" : "driver_phone";
+    if (kind === "hardware" && !/^\d{15}$/.test(values.device ?? "")) {
+      throw new Error("a hardware tracker is identified by its 15-digit IMEI: --device <IMEI>");
+    }
     const uid = values.device ?? `phone-${values.bus}-${randomBytes(3).toString("hex")}`;
     const out = await withContext(db, ctx, (q) =>
-      provisionTracker(q, env.TRACKER_SECRET_KEY, { busNumber: values.bus!, deviceUid: uid }),
+      provisionTracker(q, env.TRACKER_SECRET_KEY, { busNumber: values.bus!, deviceUid: uid, kind }),
     );
-    console.log(
-      `bus ${values.bus} paired to device ${uid}\nopen on the driver's phone:\n  ${link(uid, out.secret)}`,
-    );
+    if (kind === "hardware") {
+      // Stage 9: the adapter holds the secret, not the device (GT06 cannot sign anything)
+      console.log(
+        `bus ${values.bus} paired to GT06 tracker ${uid}\nadd to the adapter's ADAPTER_DEVICES_FILE:\n  ${JSON.stringify({ [uid]: { secret: out.secret, moving_interval_s: 10, idle_interval_s: 60 } })}`,
+      );
+    } else {
+      console.log(
+        `bus ${values.bus} paired to device ${uid}\nopen on the driver's phone:\n  ${link(uid, out.secret)}`,
+      );
+    }
   } else if (positionals[0] === "rotate" && values.device) {
     const secret = await withContext(db, ctx, (q) =>
       rotateTrackerSecret(q, env.TRACKER_SECRET_KEY, values.device!),

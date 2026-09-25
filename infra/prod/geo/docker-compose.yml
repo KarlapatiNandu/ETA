@@ -1,0 +1,56 @@
+# The production geo box (BUILD_PLAN Stage 9, ARCH §9): OSRM car + foot, Photon and the tile
+# server on one 4 vCPU / 8 GB VPS (Hetzner CPX31 or DigitalOcean BLR), with Caddy for TLS.
+#
+#   scp -r infra/prod/geo infra/osrm/data infra/tiles/data  box:/srv/busmitra/
+#   ssh box 'cd /srv/busmitra/geo && docker compose up -d'
+#
+# The OSRM and tile artefacts are the ones infra/osrm/prepare.sh and infra/tiles/prepare.sh
+# build (published as GitHub release assets, M00). Same image tags as docker-compose.dev.yml.
+name: busmitra-geo
+
+services:
+  osrm-car:
+    image: ghcr.io/project-osrm/osrm-backend:v5.27.1
+    command:
+      ["osrm-routed", "--algorithm", "mld", "--max-matching-size", "200", "/data/hyderabad.osrm"]
+    volumes: ["../osrm/data/car:/data:ro"]
+    restart: unless-stopped
+  osrm-foot:
+    image: ghcr.io/project-osrm/osrm-backend:v5.27.1
+    command: ["osrm-routed", "--algorithm", "mld", "/data/hyderabad.osrm"]
+    volumes: ["../osrm/data/foot:/data:ro"]
+    restart: unless-stopped
+  photon:
+    image: rtuszik/photon-docker:latest
+    environment: { REGION: india, UPDATE_STRATEGY: DISABLED }
+    volumes: [photon-data:/photon/data]
+    restart: unless-stopped
+  tiles:
+    image: maptiler/tileserver-gl:v5.3.1
+    command:
+      [
+        "--file",
+        "/data/hyderabad.mbtiles",
+        "--port",
+        "8080",
+        "--public_url",
+        "https://tiles.${DOMAIN}/",
+      ]
+    volumes: ["../tiles/data:/data:ro"]
+    restart: unless-stopped
+  caddy:
+    image: caddy:2.10-alpine
+    ports: ["80:80", "443:443"]
+    environment:
+      DOMAIN: ${DOMAIN}
+      ACME_EMAIL: ${ACME_EMAIL}
+      # a long random path segment: the only way into OSRM and Photon (see Caddyfile)
+      GEO_TOKEN: ${GEO_TOKEN}
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy-data:/data
+    restart: unless-stopped
+
+volumes:
+  photon-data:
+  caddy-data:

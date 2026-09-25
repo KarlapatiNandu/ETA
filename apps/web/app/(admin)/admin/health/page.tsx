@@ -2,7 +2,7 @@
 import dynamic from "next/dynamic";
 import { ErrorText } from "@/components/ui";
 import type { DeadZone } from "@/components/admin/dead-zone-map";
-import { fmtAge, fmtTime, useAdmin } from "@/lib/admin";
+import { admin, fmtAge, fmtTime, useAdmin } from "@/lib/admin";
 
 // MapLibre touches `window`: client-only
 const DeadZoneMap = dynamic(
@@ -56,7 +56,20 @@ const ALERT_NAMES: Record<string, string> = {
  * dashboards, for a TD member without a Grafana login. Polls every 10 s.
  */
 export default function HealthPage() {
-  const { data, error } = useAdmin<Health>("/v1/admin/observability", 10_000);
+  const { data, error, reload, setError } = useAdmin<Health>("/v1/admin/observability", 10_000);
+  const rename = async (id: string, current: string | null) => {
+    const label = window.prompt("Name this place the way students know it", current ?? "");
+    if (label === null) return;
+    try {
+      await admin(`/v1/admin/dead-zones/${id}`, {
+        method: "PATCH",
+        body: { label: label.trim() || null },
+      });
+      await reload();
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Could not rename.");
+    }
+  };
   const firing = data?.alerts.filter((a) => a.firing) ?? [];
   const known = data?.deadZones.outages14d.find((o) => o.in_known_zone)?.outages ?? 0;
   const unknown = data?.deadZones.outages14d.find((o) => !o.in_known_zone)?.outages ?? 0;
@@ -222,7 +235,13 @@ export default function HealthPage() {
           <ul className="mt-3 space-y-1 text-sm" data-testid="dead-zones">
             {data.deadZones.zones.map((z) => (
               <li key={z.id}>
-                <span className="font-semibold">{z.label ?? "Unnamed zone"}</span>{" "}
+                <button
+                  className="font-semibold underline decoration-dotted"
+                  title="Rename"
+                  onClick={() => void rename(z.id, z.label)}
+                >
+                  {z.label ?? "Unnamed zone"}
+                </button>{" "}
                 <span className="text-muted">
                   · {z.sample_count} outages · clears in ~{z.avg_outage_s} s · confidence{" "}
                   {Math.round(Number(z.confidence) * 100)}%
