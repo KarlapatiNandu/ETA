@@ -1,0 +1,1613 @@
+<!doctype html>
+<html lang="en" data-theme="dark">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Bus Mitra — Demo</title>
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='8' fill='%232fd27a'/%3E%3Cpath d='M7 21 L13 12 L19 18 L25 9' stroke='%2304150b' stroke-width='3' fill='none' stroke-linecap='round' stroke-linejoin='round'/%3E%3Ccircle cx='19' cy='18' r='3' fill='%2304150b'/%3E%3C/svg%3E">
+<!--
+  Bus Mitra — standalone stakeholder demo.
+  One file, no network: no backend, no CDN, no web fonts. Every bus, code and alert is simulated
+  in this page. Open it by double-clicking. Presenter keys are listed in demo/README.md.
+-->
+<style>
+/* ── tokens: the same values as packages/ui/src/tokens.css ─────────────────────────────────── */
+:root {
+  color-scheme: dark;
+  --canvas: #0b0d10;
+  --panel: #14181d;
+  --raised: #1b2026;
+  --line: #262c34;
+  --ink: #e8ecf1;
+  --muted: #8a95a3;
+  --live: #2fd27a;
+  --live-ink: #04150b;
+  --degraded: #f5a524;
+  --dark: #ef4444;
+  --route: #3b82f6;
+  --focus: #7cc4ff;
+
+  --map-bg: #0e1216;
+  --map-dot: #171c22;
+  --water: #0f2236;
+  --water-edge: #17375a;
+  --road: #1a2028;
+  --stage-glow: rgb(47 210 122 / 0.13);
+  --stage-glow-2: rgb(59 130 246 / 0.10);
+  --backdrop-op: 0.07;
+
+  --sans: "Inter", ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", sans-serif;
+  --mono: ui-monospace, "SF Mono", SFMono-Regular, Menlo, Consolas, "Liberation Mono", monospace;
+  --z: 1;
+}
+:root[data-theme="light"] {
+  color-scheme: light;
+  --canvas: #f6f7f9;
+  --panel: #ffffff;
+  --raised: #f0f2f5;
+  --line: #dde1e6;
+  --ink: #0f1419;
+  --muted: #5b6673;
+  --live: #0f9d58;
+  --live-ink: #ffffff;
+  --degraded: #b76e00;
+  --dark: #c81e1e;
+  --route: #1d5fd1;
+  --focus: #1d5fd1;
+
+  --map-bg: #eef1f4;
+  --map-dot: #e1e5ea;
+  --water: #d3e6f7;
+  --water-edge: #b5d3ee;
+  --road: #dde2e8;
+  --stage-glow: rgb(15 157 88 / 0.12);
+  --stage-glow-2: rgb(29 95 209 / 0.08);
+  --backdrop-op: 0.09;
+}
+
+* { box-sizing: border-box; }
+[hidden] { display: none !important; }
+html, body { margin: 0; height: 100%; }
+body {
+  background:
+    radial-gradient(900px 600px at 50% 45%, var(--stage-glow), transparent 70%),
+    radial-gradient(700px 500px at 85% 10%, var(--stage-glow-2), transparent 70%),
+    var(--canvas);
+  color: var(--ink);
+  font: 15px/1.45 var(--sans);
+  font-variant-numeric: tabular-nums;
+  -webkit-font-smoothing: antialiased;
+  overflow-x: hidden;
+}
+button { font: inherit; color: inherit; cursor: pointer; }
+:focus-visible { outline: 2px solid var(--focus); outline-offset: 2px; }
+
+/* ── stage ──────────────────────────────────────────────────────────────────────────────────── */
+.backdrop { position: fixed; inset: 0; pointer-events: none; opacity: var(--backdrop-op); }
+.backdrop svg { width: 100%; height: 100%; }
+.stage {
+  position: relative;
+  min-height: 100vh;
+  display: grid;
+  grid-template-columns: minmax(280px, 1fr) auto minmax(260px, 1fr);
+  align-items: center;
+  gap: clamp(24px, 4vw, 72px);
+  padding: 20px clamp(16px, 3vw, 48px);
+}
+body.clean .story, body.clean .controls { visibility: hidden; }
+
+/* story rail — the talk track, drawn as a metro line */
+.story { max-width: 440px; justify-self: end; }
+.brand { display: flex; align-items: center; gap: 12px; }
+.brand-mark { width: 44px; height: 44px; border-radius: 12px; background: var(--live); display: grid; place-items: center; box-shadow: 0 8px 24px -8px var(--live); }
+.brand-mark svg { width: 26px; height: 26px; }
+.wordmark { font-weight: 800; font-size: 20px; letter-spacing: -0.01em; }
+.brand-sub { color: var(--muted); font-size: 13px; }
+.pitch { font-size: clamp(26px, 2.4vw, 34px); line-height: 1.12; letter-spacing: -0.025em; margin: 28px 0 28px; font-weight: 800; }
+.pitch span { color: var(--live); }
+
+.metro { list-style: none; margin: 0; padding: 0; position: relative; }
+.metro::before { content: ""; position: absolute; left: 11px; top: 14px; bottom: 14px; width: 4px; border-radius: 2px; background: var(--line); }
+.metro::after { content: ""; position: absolute; left: 11px; top: 14px; width: 4px; border-radius: 2px; background: var(--live); height: var(--progress, 0%); transition: height .5s cubic-bezier(.4,0,.2,1); }
+.stn { position: relative; }
+.stn > button { display: grid; grid-template-columns: 26px 1fr; gap: 14px; width: 100%; text-align: left; background: none; border: 0; padding: 8px 0; border-radius: 10px; }
+.stn .dot { width: 26px; height: 26px; border-radius: 50%; background: var(--canvas); border: 4px solid var(--line); position: relative; z-index: 1; display: grid; place-items: center; font: 700 11px var(--sans); color: var(--muted); transition: all .3s; }
+.stn.done .dot { border-color: var(--live); color: var(--live); }
+.stn.on .dot { border-color: var(--live); background: var(--live); color: var(--live-ink); box-shadow: 0 0 0 6px color-mix(in srgb, var(--live) 22%, transparent); }
+.stn .t { font-weight: 650; padding-top: 2px; color: var(--muted); transition: color .3s; }
+.stn.on .t, .stn > button:hover .t { color: var(--ink); }
+.stn .talk { display: grid; grid-template-rows: 0fr; transition: grid-template-rows .4s cubic-bezier(.4,0,.2,1); }
+.stn.on .talk { grid-template-rows: 1fr; }
+.stn .talk > p { overflow: hidden; min-height: 0; margin: 0; padding-left: 40px; color: var(--muted); font-size: 14px; }
+.stn.on .talk > p { padding-bottom: 8px; }
+
+.stats { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; margin-top: 26px; }
+.stat { border: 1px solid var(--line); background: color-mix(in srgb, var(--panel) 80%, transparent); border-radius: 14px; padding: 12px; }
+.stat b { display: block; font-size: 22px; letter-spacing: -0.02em; }
+.stat span { display: block; color: var(--muted); font-size: 12px; line-height: 1.3; margin-top: 2px; }
+.stats-note { color: var(--muted); font-size: 12px; margin-top: 10px; }
+
+/* presenter panel */
+.controls { max-width: 340px; justify-self: start; }
+.panel { border: 1px solid var(--line); background: color-mix(in srgb, var(--panel) 88%, transparent); backdrop-filter: blur(10px); border-radius: 20px; padding: 16px; }
+.panel-h { display: flex; align-items: center; gap: 8px; font-weight: 700; margin-bottom: 12px; }
+.panel-h .tag { margin-left: auto; }
+.tag { font-size: 11px; font-weight: 600; color: var(--muted); border: 1px solid var(--line); border-radius: 999px; padding: 2px 8px; white-space: nowrap; }
+.pulse { width: 8px; height: 8px; border-radius: 50%; background: var(--live); box-shadow: 0 0 0 0 var(--live); animation: pulse 2s infinite; }
+@keyframes pulse { 0% { box-shadow: 0 0 0 0 color-mix(in srgb, var(--live) 60%, transparent); } 70% { box-shadow: 0 0 0 8px transparent; } 100% { box-shadow: 0 0 0 0 transparent; } }
+.scen { display: grid; gap: 6px; }
+.scen button { display: grid; grid-template-columns: 34px 1fr auto; align-items: center; gap: 10px; text-align: left; background: var(--raised); border: 1px solid transparent; border-radius: 12px; padding: 9px 10px; transition: border-color .2s, transform .1s; }
+.scen button:hover { border-color: var(--line); }
+.scen button:active { transform: scale(.985); }
+.scen .ic { width: 34px; height: 34px; border-radius: 9px; display: grid; place-items: center; background: var(--panel); }
+.scen .ic svg { width: 18px; height: 18px; }
+.scen b { display: block; font-size: 14px; }
+.scen small { display: block; color: var(--muted); font-size: 12px; }
+.ic.g { color: var(--live); } .ic.a { color: var(--degraded); } .ic.r { color: var(--dark); } .ic.b { color: var(--route); } .ic.m { color: var(--muted); }
+kbd { font: 600 11px var(--mono); color: var(--muted); border: 1px solid var(--line); border-bottom-width: 2px; border-radius: 6px; padding: 1px 6px; background: var(--panel); }
+.speed { display: flex; align-items: center; justify-content: space-between; margin-top: 14px; font-size: 13px; color: var(--muted); }
+.seg { display: inline-flex; background: var(--raised); border-radius: 10px; padding: 3px; gap: 2px; }
+.seg button { border: 0; background: none; border-radius: 8px; padding: 4px 10px; font-size: 13px; font-weight: 600; color: var(--muted); }
+.seg button.on { background: var(--panel); color: var(--ink); box-shadow: 0 1px 2px rgb(0 0 0 / .25); }
+.keys { margin-top: 12px; font-size: 12px; color: var(--muted); display: flex; flex-wrap: wrap; gap: 6px 12px; }
+.honest { color: var(--muted); font-size: 12px; margin: 12px 4px 0; }
+
+/* ── the phone ──────────────────────────────────────────────────────────────────────────────── */
+.device { display: flex; flex-direction: column; align-items: center; }
+.phone {
+  zoom: var(--z);
+  width: 402px; height: 860px;
+  padding: 12px;
+  border-radius: 64px;
+  background: linear-gradient(150deg, #3a414b 0%, #15181c 35%, #0b0d10 60%, #2b3139 100%);
+  box-shadow:
+    0 0 0 1.5px #4a525d inset,
+    0 0 0 6px #0b0d10 inset,
+    0 50px 100px -30px rgb(0 0 0 / .75),
+    0 0 140px -30px color-mix(in srgb, var(--live) 45%, transparent);
+  position: relative;
+}
+.phone::before, .phone::after { content: ""; position: absolute; width: 4px; border-radius: 2px; background: #2b3139; }
+.phone::before { left: -3px; top: 180px; height: 64px; box-shadow: 0 84px 0 #2b3139; }
+.phone::after { right: -3px; top: 220px; height: 100px; }
+.phone.buzz { animation: buzz .45s linear; }
+@keyframes buzz { 0%,100% { transform: translateX(0); } 15%,55% { transform: translateX(-3px) rotate(-.3deg); } 35%,75% { transform: translateX(3px) rotate(.3deg); } }
+
+.screen {
+  position: relative; width: 100%; height: 100%;
+  border-radius: 52px; overflow: hidden;
+  background: var(--canvas);
+  display: flex; flex-direction: column;
+  isolation: isolate;
+}
+.island { position: absolute; top: 11px; left: 50%; transform: translateX(-50%); width: 122px; height: 35px; border-radius: 20px; background: #000; z-index: 60; }
+.statusbar { height: 54px; flex: none; display: flex; justify-content: space-between; align-items: center; padding: 6px 34px 0 40px; font-weight: 650; font-size: 16px; z-index: 5; }
+.sb-r { display: flex; gap: 6px; align-items: center; }
+.sb-r svg { height: 12px; }
+.views { flex: 1; overflow-y: auto; overflow-x: hidden; position: relative; scrollbar-width: none; }
+.views::-webkit-scrollbar { display: none; }
+.view { display: none; padding: 6px 16px 28px; }
+.view.on { display: block; animation: viewIn .38s cubic-bezier(.2,.8,.2,1); }
+@keyframes viewIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: none; } }
+.homebar { position: absolute; bottom: 8px; left: 50%; transform: translateX(-50%); width: 136px; height: 5px; border-radius: 3px; background: var(--ink); opacity: .55; z-index: 70; }
+
+/* tab bar */
+.tabbar { flex: none; height: 84px; padding: 8px 10px 26px; display: flex; border-top: 1px solid var(--line); background: color-mix(in srgb, var(--panel) 92%, transparent); backdrop-filter: blur(16px); z-index: 5; }
+.screen.onboarding .tabbar { display: none; }
+.tab { flex: 1; border: 0; background: none; display: flex; flex-direction: column; align-items: center; gap: 3px; color: var(--muted); font-size: 11px; font-weight: 600; position: relative; }
+.tab svg { width: 24px; height: 24px; }
+.tab.on { color: var(--live); }
+.badge { position: absolute; top: -3px; left: calc(50% + 6px); min-width: 18px; height: 18px; padding: 0 5px; border-radius: 9px; background: var(--dark); color: #fff; font-size: 11px; line-height: 18px; text-align: center; font-weight: 700; border: 2px solid var(--panel); }
+.badge.bump { animation: bump .4s; }
+@keyframes bump { 50% { transform: scale(1.35); } }
+
+/* generic app pieces */
+.title { font-size: 28px; font-weight: 800; letter-spacing: -0.02em; margin: 6px 0 8px; }
+.muted { color: var(--muted); }
+.small { font-size: 13px; }
+.fine { color: var(--muted); font-size: 12px; }
+.center { text-align: center; }
+.btn { border: 1px solid var(--line); background: var(--raised); color: var(--ink); border-radius: 14px; padding: 13px 16px; font-weight: 700; font-size: 16px; display: inline-flex; align-items: center; justify-content: center; gap: 8px; transition: transform .1s, opacity .2s; }
+.btn:active { transform: scale(.98); }
+.btn.primary { background: var(--live); color: var(--live-ink); border-color: var(--live); }
+.btn.primary:disabled { opacity: .35; cursor: default; }
+.btn.block { width: 100%; }
+.btn.ghost { background: transparent; }
+.btn.sm { padding: 8px 12px; font-size: 14px; border-radius: 11px; }
+.btn.xs { padding: 5px 10px; font-size: 12px; border-radius: 9px; font-weight: 700; }
+.btn.xs.on { background: var(--live); color: var(--live-ink); border-color: var(--live); }
+.link { border: 0; background: none; color: var(--muted); font-size: 14px; padding: 0; text-decoration: underline; text-underline-offset: 3px; }
+.back { border: 0; background: none; color: var(--live); font-weight: 600; padding: 4px 0; font-size: 16px; }
+.card { border: 1px solid var(--line); background: var(--panel); border-radius: 20px; padding: 16px; margin-top: 12px; }
+.card-h { font-size: 12px; text-transform: uppercase; letter-spacing: .08em; color: var(--muted); font-weight: 700; margin-bottom: 12px; display: flex; justify-content: space-between; }
+.spin { width: 16px; height: 16px; border-radius: 50%; border: 2px solid currentColor; border-right-color: transparent; animation: spin .7s linear infinite; }
+@keyframes spin { to { transform: rotate(360deg); } }
+
+/* welcome */
+.view.welcome.on { display: flex; flex-direction: column; min-height: 100%; padding-bottom: 40px; }
+.welcome-art { flex: 1; display: grid; place-items: center; min-height: 330px; position: relative; }
+.welcome-art svg { width: 100%; max-width: 340px; overflow: visible; }
+.welcome-art .glow { position: absolute; width: 260px; height: 260px; border-radius: 50%; background: radial-gradient(circle, color-mix(in srgb, var(--live) 28%, transparent), transparent 65%); filter: blur(10px); }
+.eyebrow { font: 700 12px var(--mono); letter-spacing: .14em; text-transform: uppercase; color: var(--live); }
+.welcome h2 { font-size: 44px; line-height: 1; letter-spacing: -0.035em; margin: 10px 0 12px; font-weight: 850; }
+.welcome p { color: var(--muted); font-size: 17px; margin: 0 0 26px; }
+.welcome-actions { display: grid; gap: 10px; }
+.welcome-actions .fine { text-align: center; margin-top: 6px; }
+
+/* claim / otp */
+.step-pill { display: inline-block; margin-top: 18px; font: 700 11px var(--mono); letter-spacing: .1em; text-transform: uppercase; color: var(--muted); }
+.field { display: block; margin: 22px 0 16px; }
+.field > span { display: block; font-size: 13px; font-weight: 600; color: var(--muted); margin-bottom: 6px; }
+.field input { width: 100%; background: var(--panel); border: 1px solid var(--line); border-radius: 14px; padding: 14px 16px; font: 600 20px var(--mono); letter-spacing: .08em; color: var(--ink); outline: none; transition: border-color .2s; }
+.field input:focus { border-color: var(--live); }
+.field input.pw { letter-spacing: .25em; font-size: 18px; }
+.assure { display: flex; gap: 10px; margin-top: 20px; padding: 12px 14px; border-radius: 14px; background: var(--raised); color: var(--muted); font-size: 13px; }
+.assure svg { flex: none; width: 18px; height: 18px; color: var(--live); margin-top: 1px; }
+.otp { position: relative; display: grid; grid-template-columns: repeat(6, 1fr); gap: 8px; margin: 22px 0 10px; }
+.otp input { position: absolute; inset: 0; opacity: 0; font-size: 16px; }
+.otp .cell { height: 58px; border-radius: 14px; border: 1.5px solid var(--line); background: var(--panel); display: grid; place-items: center; font: 700 26px var(--mono); transition: border-color .2s; }
+.otp .cell.filled { border-color: var(--live); animation: pop .25s; }
+@keyframes pop { 50% { transform: scale(1.08); } }
+.autofill { display: flex; align-items: center; justify-content: center; gap: 10px; width: 100%; border: 0; background: var(--raised); border-radius: 12px; padding: 10px; margin-bottom: 4px; animation: viewIn .3s; }
+.autofill small { color: var(--muted); }
+.autofill b { font-family: var(--mono); letter-spacing: .15em; }
+.reveal { animation: viewIn .35s; }
+
+/* ready */
+.view.ready.on { display: flex; flex-direction: column; justify-content: center; align-items: center; text-align: center; min-height: 100%; padding: 0 28px 60px; }
+.check { width: 110px; height: 110px; margin-bottom: 18px; }
+.check circle { fill: none; stroke: var(--live); stroke-width: 5; stroke-dasharray: 302; stroke-dashoffset: 302; animation: draw .7s .1s forwards cubic-bezier(.6,0,.2,1); stroke-linecap: round; transform: rotate(-90deg); transform-origin: center; }
+.check path { fill: none; stroke: var(--live); stroke-width: 6; stroke-linecap: round; stroke-linejoin: round; stroke-dasharray: 60; stroke-dashoffset: 60; animation: draw .4s .7s forwards; }
+@keyframes draw { to { stroke-dashoffset: 0; } }
+.ready h2 { font-size: 30px; margin: 0 0 6px; letter-spacing: -0.02em; }
+.ready p { margin: 0 0 26px; }
+
+/* home: topline + LED departure board */
+.topline { display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px; }
+.conn { display: inline-flex; align-items: center; gap: 7px; font-size: 13px; font-weight: 700; color: var(--live); background: color-mix(in srgb, var(--live) 12%, transparent); padding: 4px 10px; border-radius: 999px; }
+.led { position: relative; height: 34px; border-radius: 10px; background: #0a0b08; border: 1px solid #23251c; overflow: hidden; margin-bottom: 12px; box-shadow: inset 0 0 18px rgb(0 0 0 / .8); }
+.led span { display: inline-block; white-space: nowrap; padding-left: 100%; font: 800 17px/34px var(--mono); letter-spacing: .06em; color: #ffb21e; text-shadow: 0 0 6px rgb(255 178 30 / .75), 0 0 14px rgb(255 140 0 / .35); animation: marquee 22s linear infinite; }
+.led::after { content: ""; position: absolute; inset: 0; pointer-events: none; background: radial-gradient(circle at center, transparent 0.85px, #0a0b08 1.25px) 0 0 / 3px 3px; }
+.led::before { content: ""; position: absolute; inset: 0; z-index: 1; pointer-events: none; background: linear-gradient(90deg, #0a0b08, transparent 8%, transparent 92%, #0a0b08); }
+@keyframes marquee { to { transform: translateX(-100%); } }
+
+/* hero */
+.hero { border: 1px solid var(--line); background: var(--panel); border-radius: 22px; padding: 16px 16px 14px; position: relative; overflow: hidden; }
+.hero::before { content: ""; position: absolute; inset: 0 0 auto 0; height: 3px; background: linear-gradient(90deg, var(--live), color-mix(in srgb, var(--live) 0%, transparent)); }
+.hero[data-tone="warn"]::before { background: linear-gradient(90deg, var(--degraded), transparent); }
+.hero[data-tone="dark"]::before { background: linear-gradient(90deg, var(--dark), transparent); }
+.hero .h-empty { display: none; }
+.hero.empty .h-empty { display: block; }
+.hero.empty .h-full { display: none; }
+.h-empty p { margin: 0; }
+.h-empty .q { font-size: 19px; font-weight: 750; }
+.h-empty .btn { margin-top: 14px; }
+.h-top { display: flex; justify-content: space-between; align-items: center; font-size: 13px; color: var(--muted); }
+.h-main { display: flex; align-items: center; gap: 10px; margin-top: 8px; flex-wrap: wrap; }
+.busno { font-size: 30px; font-weight: 850; letter-spacing: -0.02em; }
+.flapwrap { display: inline-flex; align-items: baseline; gap: 6px; }
+.flap { display: inline-flex; gap: 3px; perspective: 300px; }
+.flap .f {
+  position: relative; display: inline-block; min-width: 26px; height: 38px; padding: 0 3px;
+  border-radius: 6px; text-align: center;
+  font: 800 26px/38px var(--mono); color: #f3f6f9;
+  background: linear-gradient(#232931 0 50%, #1a1f25 50% 100%);
+  box-shadow: 0 1px 0 rgb(255 255 255 / .06) inset, 0 2px 4px rgb(0 0 0 / .35);
+}
+.flap .f::after { content: ""; position: absolute; left: 0; right: 0; top: 50%; height: 1px; background: rgb(0 0 0 / .65); }
+.flap .f.sep { min-width: 12px; background: none; box-shadow: none; color: var(--muted); padding: 0; }
+.flap .f.sep::after { display: none; }
+.flap .f.flip { animation: flip .32s ease-in-out both; }
+@keyframes flip { 0% { transform: rotateX(0); } 50% { transform: rotateX(-90deg); filter: brightness(.6); } 100% { transform: rotateX(0); } }
+.unit { font-weight: 700; color: var(--muted); font-size: 16px; }
+.conf { width: 11px; height: 11px; border-radius: 50%; border: 2px solid var(--live); display: inline-block; }
+.conf.high { background: var(--live); }
+.conf.medium { background: color-mix(in srgb, var(--live) 40%, transparent); }
+.conf.low { background: transparent; }
+.h-stop { display: flex; align-items: center; gap: 6px; font-weight: 650; margin-top: 6px; font-size: 16px; }
+.h-stop svg { width: 16px; height: 16px; color: var(--focus); }
+.h-status { margin-top: 8px; font-size: 14px; }
+.h-status .warn { color: var(--degraded); }
+.h-status .dark { color: var(--dark); }
+.h-status .ok { color: var(--muted); display: inline-flex; align-items: center; gap: 6px; }
+.h-status .note { display: block; margin-top: 8px; padding: 10px 12px; border-radius: 12px; border: 1px solid color-mix(in srgb, var(--dark) 40%, transparent); color: var(--ink); }
+.leave { margin-top: 12px; border-radius: 16px; border: 1px solid var(--line); padding: 12px 14px; background: var(--raised); position: relative; overflow: hidden; }
+.leave-big { font-size: 22px; font-weight: 850; letter-spacing: -0.01em; position: relative; }
+.leave-why { font-size: 12.5px; color: var(--muted); margin-top: 2px; position: relative; }
+.fuse { position: absolute; left: 0; bottom: 0; height: 3px; background: var(--live); width: 50%; transition: width .4s linear; }
+.leave.go { background: var(--live); border-color: var(--live); color: var(--live-ink); animation: gopulse 1.6s infinite; }
+.leave.go .leave-why { color: color-mix(in srgb, var(--live-ink) 80%, transparent); }
+.leave.go .fuse { display: none; }
+@keyframes gopulse { 0%,100% { box-shadow: 0 0 0 0 color-mix(in srgb, var(--live) 55%, transparent); } 60% { box-shadow: 0 0 0 10px transparent; } }
+.h-actions { display: flex; gap: 8px; margin-top: 12px; }
+
+/* map */
+.map-card { margin-top: 12px; border: 1px solid var(--line); border-radius: 22px; overflow: hidden; background: var(--map-bg); position: relative; }
+#map { display: block; width: 100%; height: auto; }
+#map .water { fill: var(--water); stroke: var(--water-edge); stroke-width: 1; }
+#map .river { fill: none; stroke: var(--water-edge); stroke-width: 3; stroke-linecap: round; }
+#map .road { fill: none; stroke: var(--road); stroke-width: 2; }
+#map .orr { fill: none; stroke: var(--road); stroke-width: 2.5; stroke-dasharray: 6 5; }
+#map .rt { fill: none; stroke-linecap: round; stroke-linejoin: round; }
+#map .rt.casing { stroke: var(--map-bg); stroke-width: 9; }
+#map .rt.line { stroke: var(--route); stroke-width: 4.5; transition: opacity .4s; }
+#map .rt.line.dim { opacity: .3; }
+#map .stop { fill: var(--map-bg); stroke: var(--ink); stroke-width: 1.6; }
+#map .stop.minor { stroke: var(--muted); stroke-width: 1.2; }
+#map .stop.mine { stroke: var(--focus); stroke-width: 2.5; fill: var(--panel); }
+#map .ring { fill: none; stroke: var(--focus); stroke-width: 1.5; opacity: .6; }
+#map .lbl { font: 600 9px var(--sans); fill: var(--muted); paint-order: stroke; stroke: var(--map-bg); stroke-width: 3px; stroke-linejoin: round; }
+#map .lbl.mine { fill: var(--ink); font-weight: 800; font-size: 10px; }
+#map .lbl.lake { font-style: italic; font-weight: 500; fill: var(--water-edge); stroke: none; font-size: 8px; }
+#map .campus rect { fill: var(--ink); }
+#map .campus text { fill: var(--canvas); font: 800 8px var(--sans); text-anchor: middle; }
+#map .walk { fill: none; stroke: var(--focus); stroke-width: 1.5; stroke-dasharray: 2 3; }
+#map .home circle { fill: var(--focus); }
+#map .home path { fill: var(--canvas); }
+#map .bus { cursor: pointer; filter: drop-shadow(0 1px 2px rgb(0 0 0 / .45)); }
+#map .bus rect { fill: var(--live); stroke: var(--live); stroke-width: 2; }
+#map .bus .n { fill: var(--live-ink); font: 800 10px var(--sans); text-anchor: middle; }
+#map .bus .halo { fill: var(--live); opacity: 0; transform-box: fill-box; transform-origin: center; }
+#map .bus.mine .halo { animation: halo 2.2s infinite; }
+@keyframes halo { 0% { transform: scale(.6); opacity: .45; } 100% { transform: scale(2.2); opacity: 0; } }
+#map .bus[data-state="DEGRADED"] rect { fill: var(--panel); stroke: var(--degraded); stroke-dasharray: 3 2; }
+#map .bus[data-state="DEGRADED"] .n { fill: var(--degraded); }
+#map .bus[data-state="DARK"] rect { fill: var(--panel); stroke: var(--dark); }
+#map .bus[data-state="DARK"] .n { fill: var(--dark); }
+#map .bus[data-state="DARK"] .halo, #map .bus[data-state="DEGRADED"] .halo { animation: none; }
+#map .bus .note { font: 700 8.5px var(--sans); text-anchor: middle; paint-order: stroke; stroke: var(--map-bg); stroke-width: 3px; }
+#map .bus[data-state="DEGRADED"] .note { fill: var(--degraded); }
+#map .bus[data-state="DARK"] .note { fill: var(--dark); }
+#map .compass text { font: 800 8px var(--sans); fill: var(--muted); text-anchor: middle; }
+#map .compass path { fill: var(--muted); }
+#map .disclaim { font: 500 7.5px var(--sans); fill: var(--muted); opacity: .8; }
+.legend { display: flex; gap: 14px; padding: 9px 14px; border-top: 1px solid var(--line); background: var(--panel); font-size: 11.5px; color: var(--muted); }
+.legend i { display: inline-block; width: 18px; height: 10px; border-radius: 5px; vertical-align: -1px; margin-right: 5px; border: 2px solid; }
+.legend .l1 { background: var(--live); border-color: var(--live); }
+.legend .l2 { border-color: var(--degraded); border-style: dashed; }
+.legend .l3 { border-color: var(--dark); }
+
+/* route timeline */
+.tl { list-style: none; margin: 0; padding: 0; }
+.tl li { display: flex; gap: 12px; position: relative; padding-bottom: 12px; font-size: 14px; }
+.tl li:last-child { padding-bottom: 0; }
+.tl .rail { width: 14px; display: flex; flex-direction: column; align-items: center; flex: none; }
+.tl .d { width: 12px; height: 12px; border-radius: 50%; border: 2px solid var(--line); background: var(--canvas); margin-top: 4px; flex: none; position: relative; z-index: 1; }
+.tl .seg-l { width: 2.5px; flex: 1; background: var(--line); margin-bottom: -16px; margin-top: 0; }
+.tl li.passed .d { background: var(--live); border-color: var(--live); }
+.tl li.passed .seg-l { background: var(--live); }
+.tl li.next .d { border-color: var(--live); }
+.tl li.mine .d { box-shadow: 0 0 0 3px var(--panel), 0 0 0 5px var(--focus); }
+.tl .nm { flex: 1; display: flex; justify-content: space-between; gap: 8px; }
+.tl li.passed .nm { color: var(--muted); }
+.tl li.mine .nm b { font-weight: 800; }
+.tl .you { font-size: 11px; color: var(--focus); font-weight: 700; margin-left: 6px; }
+.tl .r { font-size: 12.5px; color: var(--muted); white-space: nowrap; }
+.tl li.mine .r { color: var(--live); font-weight: 700; }
+.tl .here { display: inline-block; font: 800 10px/16px var(--sans); padding: 0 6px; border-radius: 8px; background: var(--live); color: var(--live-ink); margin-left: 6px; vertical-align: 1px; }
+.tl .here.warn { background: none; color: var(--degraded); border: 1.5px dashed var(--degraded); line-height: 13px; }
+.tl .here.dark { background: none; color: var(--dark); border: 1.5px solid var(--dark); line-height: 13px; }
+
+/* search */
+.search { display: flex; align-items: center; gap: 10px; background: var(--panel); border: 1px solid var(--line); border-radius: 16px; padding: 0 14px; transition: border-color .2s; }
+.search:focus-within { border-color: var(--live); }
+.search svg { width: 20px; height: 20px; color: var(--muted); flex: none; }
+.search input { flex: 1; min-width: 0; border: 0; background: none; outline: none; color: var(--ink); font: 500 17px var(--sans); padding: 14px 0; }
+.chips { display: flex; gap: 6px; flex-wrap: wrap; align-items: center; margin: 12px 0 4px; }
+.chip { border: 1px solid var(--line); background: var(--raised); border-radius: 999px; padding: 5px 11px; font-size: 13px; font-family: var(--mono); }
+.chip.on { border-color: var(--live); color: var(--live); }
+.results { list-style: none; padding: 0; margin: 8px 0 0; display: grid; gap: 10px; }
+.stop-card { border: 1px solid var(--line); background: var(--panel); border-radius: 18px; padding: 14px; animation: viewIn .3s both; }
+.stop-card:nth-child(2) { animation-delay: .05s; } .stop-card:nth-child(3) { animation-delay: .1s; } .stop-card:nth-child(4) { animation-delay: .15s; }
+.sc-head { display: flex; gap: 10px; align-items: center; margin-bottom: 10px; }
+.sc-head .pin { width: 34px; height: 34px; border-radius: 10px; background: color-mix(in srgb, var(--focus) 15%, transparent); color: var(--focus); display: grid; place-items: center; flex: none; }
+.sc-head .pin svg { width: 18px; height: 18px; }
+.sc-head b { display: block; font-size: 16px; }
+.sc-head small { color: var(--muted); font-size: 12px; }
+.bl { display: grid; grid-template-columns: 62px 1fr auto; align-items: center; gap: 8px; padding: 7px 0; border-top: 1px dashed var(--line); font-size: 14px; }
+.bl-n { font-weight: 750; }
+.bl-d { display: inline-flex; align-items: center; gap: 6px; }
+.bl-d.live { color: var(--live); font-weight: 650; }
+.bl-d.warn { color: var(--degraded); }
+.bl-d.dark { color: var(--dark); }
+.bl-d.muted { color: var(--muted); }
+.bl-d .conf { width: 9px; height: 9px; }
+
+/* inbox — ticket stubs */
+.row-between { display: flex; justify-content: space-between; align-items: center; }
+.stubs { list-style: none; padding: 0; margin: 10px 0 0; display: grid; gap: 10px; }
+.stub {
+  --tc: var(--muted);
+  display: grid; grid-template-columns: 74px 1fr; position: relative;
+  background: var(--panel); border: 1px solid var(--line); border-radius: 16px;
+  animation: viewIn .35s both;
+}
+.stub.t0 { --tc: var(--dark); } .stub.t1 { --tc: var(--degraded); } .stub.t2 { --tc: var(--route); } .stub.t3 { --tc: var(--muted); }
+.stub-l { padding: 12px 8px 12px 12px; border-right: 2px dashed var(--line); display: flex; flex-direction: column; justify-content: space-between; gap: 8px; position: relative; }
+.stub-l::before, .stub-l::after { content: ""; position: absolute; right: -9px; width: 16px; height: 16px; border-radius: 50%; background: var(--canvas); border: 1px solid var(--line); }
+.stub-l::before { top: -9px; clip-path: inset(50% 0 0 0); }
+.stub-l::after { bottom: -9px; clip-path: inset(0 0 50% 0); }
+.tier { font: 800 10px var(--mono); letter-spacing: .08em; text-transform: uppercase; color: var(--tc); }
+.stub-time { font: 600 12px var(--mono); color: var(--muted); }
+.stub-r { padding: 12px 14px 12px 16px; }
+.stub-r b { display: block; font-size: 14.5px; }
+.stub-r p { margin: 3px 0 0; font-size: 13px; color: var(--muted); }
+.stub-r p strong { color: var(--ink); }
+.stub.unread .stub-r b::before { content: ""; display: inline-block; width: 7px; height: 7px; border-radius: 50%; background: var(--tc); margin-right: 7px; vertical-align: 2px; }
+.stub.t0 { border-color: color-mix(in srgb, var(--dark) 45%, var(--line)); }
+.ticket { display: inline-flex; align-items: center; gap: 6px; margin-top: 8px; font-size: 12px; font-weight: 700; padding: 3px 9px; border-radius: 999px; background: var(--raised); }
+.ticket i { width: 7px; height: 7px; border-radius: 50%; background: var(--degraded); }
+.ticket.ok i { background: var(--live); }
+.stub-meta { margin-top: 8px; display: flex; gap: 8px; align-items: center; flex-wrap: wrap; font-size: 12px; color: var(--muted); }
+.quiet { font-size: 11px; color: var(--muted); border: 1px solid var(--line); border-radius: 6px; padding: 1px 6px; }
+
+/* settings */
+.list { padding: 4px 0; }
+.list .row { display: flex; justify-content: space-between; align-items: center; gap: 12px; padding: 12px 16px; }
+.list .row + .row { border-top: 1px solid var(--line); }
+.list .row b { display: block; font-size: 15px; }
+.list .row small { color: var(--muted); font-size: 12.5px; }
+.sw { width: 50px; height: 30px; border-radius: 15px; background: var(--line); border: 0; position: relative; flex: none; transition: background .2s; }
+.sw::after { content: ""; position: absolute; top: 3px; left: 3px; width: 24px; height: 24px; border-radius: 50%; background: #fff; transition: transform .2s; box-shadow: 0 1px 3px rgb(0 0 0 / .3); }
+.sw.on { background: var(--live); }
+.sw.on::after { transform: translateX(20px); }
+.sw.lock { opacity: .6; cursor: not-allowed; }
+.minimap { width: 64px; height: 44px; border-radius: 10px; background: var(--map-bg); border: 1px solid var(--line); position: relative; overflow: hidden; flex: none; }
+.minimap::before { content: ""; position: absolute; inset: 0; background: radial-gradient(circle, color-mix(in srgb, var(--focus) 30%, transparent) 0 14px, transparent 15px); }
+.minimap::after { content: ""; position: absolute; left: 28px; top: 18px; width: 8px; height: 8px; border-radius: 50%; background: var(--focus); box-shadow: 0 0 0 2px var(--panel); }
+
+/* push banner, toast, sheet */
+.push {
+  position: absolute; top: 50px; left: 10px; right: 10px; z-index: 50;
+  background: color-mix(in srgb, var(--raised) 86%, transparent);
+  backdrop-filter: blur(24px) saturate(1.4); -webkit-backdrop-filter: blur(24px) saturate(1.4);
+  border: 1px solid var(--line); border-radius: 24px; padding: 12px 14px;
+  box-shadow: 0 18px 40px -12px rgb(0 0 0 / .55);
+  transform: translateY(calc(-100% - 70px)); visibility: hidden;
+  transition: transform .5s cubic-bezier(.2,.9,.25,1.15), visibility 0s .5s;
+  cursor: pointer;
+}
+.push.show { transform: translateY(0); visibility: visible; transition: transform .5s cubic-bezier(.2,.9,.25,1.15); }
+.push.crit { border-color: var(--dark); box-shadow: 0 0 0 1px var(--dark), 0 18px 40px -12px rgb(0 0 0 / .55); }
+.push-h { display: flex; align-items: center; gap: 8px; font-size: 12px; color: var(--muted); }
+.push-h .app { font-weight: 700; text-transform: uppercase; letter-spacing: .03em; }
+.push-h .when { margin-left: auto; }
+.appicon { width: 22px; height: 22px; border-radius: 6px; display: grid; place-items: center; background: var(--live); flex: none; }
+.appicon svg { width: 14px; height: 14px; }
+.appicon.sms { background: linear-gradient(#5cf27a, #22c246); }
+.push-t { font-weight: 750; margin-top: 6px; font-size: 15px; }
+.push-b { font-size: 14px; margin-top: 1px; }
+.push-b strong { font-weight: 800; }
+.push-acts { display: flex; gap: 8px; margin-top: 10px; }
+.push-acts button { flex: 1; border: 0; background: color-mix(in srgb, var(--ink) 10%, transparent); border-radius: 12px; padding: 8px; font-weight: 700; font-size: 13px; }
+.toast { position: absolute; left: 50%; bottom: 100px; z-index: 45; transform: translate(-50%, 20px); opacity: 0; transition: all .3s; background: var(--ink); color: var(--canvas); padding: 9px 16px; border-radius: 999px; font-size: 13px; font-weight: 650; white-space: nowrap; pointer-events: none; max-width: 92%; overflow: hidden; text-overflow: ellipsis; }
+.toast.show { opacity: 1; transform: translate(-50%, 0); }
+.screen.onboarding .toast { bottom: 40px; }
+.sheet-back { position: absolute; inset: 0; background: rgb(0 0 0 / .4); z-index: 29; opacity: 0; pointer-events: none; transition: opacity .3s; }
+.sheet-back.show { opacity: 1; pointer-events: auto; }
+.sheet { position: absolute; left: 0; right: 0; bottom: 0; z-index: 30; background: var(--panel); border-top: 1px solid var(--line); border-radius: 28px 28px 0 0; padding: 10px 20px 40px; transform: translateY(105%); transition: transform .4s cubic-bezier(.2,.9,.25,1); }
+.sheet.show { transform: none; }
+.grab { width: 40px; height: 5px; border-radius: 3px; background: var(--line); margin: 0 auto 12px; }
+.sheet h3 { margin: 0; font-size: 24px; letter-spacing: -0.02em; }
+.sheet dl { display: grid; grid-template-columns: 1fr 1fr; gap: 14px 16px; margin: 16px 0 0; }
+.sheet dt { font-size: 12.5px; color: var(--muted); }
+.sheet dd { margin: 2px 0 0; font-weight: 700; }
+.sheet .note { margin-top: 14px; padding: 10px 12px; border-radius: 12px; border: 1px solid var(--line); font-size: 13.5px; }
+.sheet .note.warn { border-color: color-mix(in srgb, var(--degraded) 50%, transparent); }
+.sheet .note.dark { border-color: color-mix(in srgb, var(--dark) 50%, transparent); }
+.st-live { color: var(--live); } .st-warn { color: var(--degraded); } .st-dark { color: var(--dark); }
+
+/* ── responsive ─────────────────────────────────────────────────────────────────────────────── */
+@media (max-width: 1180px) {
+  .stage { grid-template-columns: 1fr; justify-items: center; padding-top: 24px; }
+  .device { order: 1; }
+  .controls { order: 2; justify-self: center; width: 100%; max-width: 420px; }
+  .story { order: 3; justify-self: center; width: 100%; max-width: 420px; }
+  .pitch { margin: 20px 0; }
+}
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after { animation-duration: .001ms !important; animation-iteration-count: 1 !important; transition-duration: .001ms !important; }
+}
+</style>
+</head>
+<body>
+
+<!-- a faint metro map behind everything -->
+<div class="backdrop" aria-hidden="true">
+  <svg viewBox="0 0 1600 1000" preserveAspectRatio="xMidYMid slice" fill="none" stroke-linecap="round" stroke-linejoin="round">
+    <path d="M-40 180 H420 L560 320 H1040 L1180 180 H1660" stroke="#2fd27a" stroke-width="14"/>
+    <path d="M-40 760 H300 L460 600 H880 L1060 780 H1660" stroke="#3b82f6" stroke-width="14"/>
+    <path d="M760 -40 V240 L880 360 V700 L760 820 V1040" stroke="#f5a524" stroke-width="14"/>
+    <g fill="#0b0d10" stroke="#e8ecf1" stroke-width="6">
+      <circle cx="420" cy="180" r="14"/><circle cx="800" cy="320" r="14"/><circle cx="1180" cy="180" r="14"/>
+      <circle cx="460" cy="600" r="14"/><circle cx="880" cy="600" r="14"/><circle cx="1060" cy="780" r="14"/>
+      <circle cx="880" cy="360" r="14"/><circle cx="760" cy="820" r="14"/>
+    </g>
+  </svg>
+</div>
+
+<div class="stage">
+
+  <!-- ── story rail: the talk track ─────────────────────────────────────────────────────────── -->
+  <aside class="story" aria-label="Demo chapters">
+    <div class="brand">
+      <div class="brand-mark"><svg viewBox="0 0 24 24" fill="none" stroke="#04150b" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M4 17 9 9l5 6 6-10"/><circle cx="14" cy="15" r="2.4" fill="#04150b"/></svg></div>
+      <div><div class="wordmark">Bus Mitra</div><div class="brand-sub">Live bus tracking · CBIT campus fleet</div></div>
+    </div>
+    <h1 class="pitch">Know when to leave —<br><span>not when you've missed it.</span></h1>
+    <ol class="metro" id="steps"></ol>
+    <div class="stats">
+      <div class="stat"><b>4.0 s</b><span>GPS fix to a student's screen (p95)</span></div>
+      <div class="stat"><b>1,000</b><span>students in the load test</span></div>
+      <div class="stat"><b>5 of 5</b><span>failure drills with no data lost</span></div>
+    </div>
+    <p class="stats-note">Measured on the full local stack, Sept 2026. The real-bus accuracy trial is next.</p>
+  </aside>
+
+  <!-- ── the phone ──────────────────────────────────────────────────────────────────────────── -->
+  <div class="device">
+    <div class="phone" id="phone">
+      <div class="screen onboarding" id="screen">
+        <div class="island"></div>
+        <div class="statusbar">
+          <span id="clock">7:24</span>
+          <span class="sb-r" aria-hidden="true">
+            <svg viewBox="0 0 18 12" fill="currentColor"><rect x="0" y="8" width="3" height="4" rx="1"/><rect x="5" y="5.5" width="3" height="6.5" rx="1"/><rect x="10" y="3" width="3" height="9" rx="1"/><rect x="15" y="0" width="3" height="12" rx="1"/></svg>
+            <svg viewBox="0 0 16 12" fill="currentColor"><path d="M8 2.2c2.4 0 4.6.9 6.2 2.5l1.2-1.3A10.5 10.5 0 0 0 8 .4 10.5 10.5 0 0 0 .6 3.4l1.2 1.3A8.7 8.7 0 0 1 8 2.2Zm0 3.6c1.5 0 2.8.5 3.8 1.5l1.3-1.3A7 7 0 0 0 8 4a7 7 0 0 0-5.1 2l1.3 1.3c1-1 2.3-1.5 3.8-1.5Zm0 3.5c.6 0 1.1.2 1.5.6L8 11.5 6.5 9.9c.4-.4.9-.6 1.5-.6Z"/></svg>
+            <svg viewBox="0 0 27 12" fill="none"><rect x=".5" y=".5" width="23" height="11" rx="3.5" stroke="currentColor" opacity=".4"/><rect x="2" y="2" width="17" height="8" rx="2" fill="currentColor"/><path d="M25 4v4c.8-.3 1.3-1.1 1.3-2S25.8 4.3 25 4Z" fill="currentColor" opacity=".4"/></svg>
+          </span>
+        </div>
+
+        <div class="push" id="push" role="status" aria-live="polite"></div>
+
+        <div class="views" id="views">
+
+          <!-- welcome -->
+          <section class="view welcome" data-view="welcome">
+            <div class="welcome-art">
+              <div class="glow"></div>
+              <svg viewBox="0 0 320 300" fill="none" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                <path id="wpath" d="M20 250 H90 L150 190 V120 L200 70 H300" stroke="var(--live)" stroke-width="12"/>
+                <path d="M20 120 H100 L150 170" stroke="var(--route)" stroke-width="8" opacity=".45"/>
+                <path d="M200 270 V200 L150 150" stroke="var(--degraded)" stroke-width="8" opacity=".35"/>
+                <g fill="var(--canvas)" stroke="var(--ink)" stroke-width="4">
+                  <circle cx="20" cy="250" r="9"/><circle cx="90" cy="250" r="9"/><circle cx="150" cy="155" r="11"/><circle cx="200" cy="70" r="9"/><circle cx="300" cy="70" r="9"/>
+                </g>
+                <circle r="9" fill="var(--live)">
+                  <animateMotion dur="5s" repeatCount="indefinite" keyPoints="0;1" keyTimes="0;1" calcMode="spline" keySplines=".45 0 .35 1"><mpath href="#wpath"/></animateMotion>
+                </circle>
+                <circle r="9" fill="none" stroke="var(--live)" stroke-width="2">
+                  <animateMotion dur="5s" repeatCount="indefinite" keyPoints="0;1" keyTimes="0;1" calcMode="spline" keySplines=".45 0 .35 1"><mpath href="#wpath"/></animateMotion>
+                  <animate attributeName="r" values="9;22" dur="1.25s" repeatCount="indefinite"/>
+                  <animate attributeName="opacity" values=".8;0" dur="1.25s" repeatCount="indefinite"/>
+                </circle>
+                <text x="300" y="50" fill="var(--muted)" font-size="12" font-weight="700" text-anchor="middle" font-family="var(--mono)">CBIT</text>
+                <text x="20" y="280" fill="var(--muted)" font-size="12" font-weight="700" font-family="var(--mono)">HOME</text>
+              </svg>
+            </div>
+            <div class="eyebrow">CBIT Transport</div>
+            <h2>Bus Mitra</h2>
+            <p>Your college bus, live. Know when to leave — not when you've missed it.</p>
+            <div class="welcome-actions">
+              <button class="btn primary block" data-go="claim">Claim your account</button>
+              <button class="btn ghost block" data-go="claim">I already have one</button>
+              <div class="fine">Works in your browser · add it to your home screen for alerts</div>
+            </div>
+          </section>
+
+          <!-- claim -->
+          <section class="view" data-view="claim">
+            <button class="back" data-go="welcome">‹ Back</button>
+            <div class="step-pill">Step 1 of 2</div>
+            <h2 class="title">Claim your account</h2>
+            <p class="muted">We'll text a 6-digit code to the phone number the Transport Department has on file for you.</p>
+            <label class="field"><span>Roll number</span><input id="roll" inputmode="numeric" autocomplete="off" placeholder="160123737045" maxlength="12"></label>
+            <button class="btn primary block" id="sendCode">Send code</button>
+            <div class="assure">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="10" width="16" height="11" rx="2.5"/><path d="M8 10V7a4 4 0 0 1 8 0v3"/></svg>
+              <span>The app never says whether a roll number exists, so nobody can probe the student roster.</span>
+            </div>
+          </section>
+
+          <!-- otp -->
+          <section class="view" data-view="otp">
+            <button class="back" data-go="claim">‹ Back</button>
+            <div class="step-pill">Step 2 of 2</div>
+            <h2 class="title">Enter the code</h2>
+            <p class="muted">If <b id="rollEcho" style="color:var(--ink)"></b> is eligible, a code was sent to <b style="color:var(--ink)">+91 ••••• ••821</b>. It expires in 10 minutes.</p>
+            <div class="otp" id="otp">
+              <span class="cell"></span><span class="cell"></span><span class="cell"></span><span class="cell"></span><span class="cell"></span><span class="cell"></span>
+              <input id="otpInput" inputmode="numeric" autocomplete="one-time-code" maxlength="6" aria-label="6-digit code">
+            </div>
+            <button class="autofill" id="autofill" hidden><small>From Messages</small><b>482913</b></button>
+            <div id="pwBlock" hidden class="reveal">
+              <label class="field" style="margin:14px 0 10px"><span>New password (8+ characters)</span><input class="pw" type="password" value="busmitra26" autocomplete="off"></label>
+              <label class="field" style="margin:0 0 16px"><span>Confirm password</span><input class="pw" type="password" value="busmitra26" autocomplete="off"></label>
+            </div>
+            <button class="btn primary block" id="createAcct" disabled>Create account</button>
+            <p class="fine center">Not your number? Contact the Transport Department.</p>
+          </section>
+
+          <!-- ready -->
+          <section class="view ready" data-view="ready">
+            <svg class="check" viewBox="0 0 110 110"><circle cx="55" cy="55" r="48"/><path d="M34 57 L49 71 L77 41"/></svg>
+            <h2>Account ready</h2>
+            <p class="muted">Roll <b id="rollEcho2" style="color:var(--ink)"></b> is linked to +91 ••••• ••821.</p>
+            <button class="btn primary block" id="toSearch">Find my bus</button>
+          </section>
+
+          <!-- home -->
+          <section class="view" data-view="home">
+            <div class="topline">
+              <span class="conn"><span class="pulse"></span>Live</span>
+              <span class="muted small" id="running">4 buses in view</span>
+            </div>
+            <div class="led" role="marquee" aria-label="Departure board"><span id="ledText"></span></div>
+
+            <div class="hero empty" id="hero">
+              <div class="h-empty">
+                <p class="q">Which bus are you taking today?</p>
+                <p class="muted small" style="margin-top:4px">Find your stop and follow a bus to see when to leave.</p>
+                <button class="btn primary sm" data-go="search">Find your stop</button>
+              </div>
+              <div class="h-full">
+                <div class="h-top"><span id="hRoute"></span><button class="link" id="unfollow">Unfollow</button></div>
+                <div class="h-main">
+                  <span class="busno">Bus <span id="hBus">14</span></span>
+                  <span class="flapwrap"><span class="flap" id="flap"></span><span class="unit" id="unit">min</span></span>
+                  <span class="conf" id="conf" role="img"></span>
+                </div>
+                <div class="h-stop"><svg viewBox="0 0 24 24" fill="currentColor"><path d="M12 2a7 7 0 0 0-7 7c0 5 7 13 7 13s7-8 7-13a7 7 0 0 0-7-7Zm0 9.5A2.5 2.5 0 1 1 12 6.5a2.5 2.5 0 0 1 0 5Z"/></svg><span id="hStop"></span></div>
+                <div class="h-status" id="hStatus"></div>
+                <div class="leave" id="leave">
+                  <div class="leave-big" id="leaveBig"></div>
+                  <div class="leave-why" id="leaveWhy"></div>
+                  <div class="fuse" id="fuse"></div>
+                </div>
+                <div class="h-actions">
+                  <button class="btn ghost sm" id="aboard">I'm on the bus</button>
+                  <button class="btn ghost sm" data-go="search">Change stop</button>
+                </div>
+              </div>
+            </div>
+
+            <div class="map-card">
+              <svg id="map" viewBox="0 0 360 262" aria-label="Live map">
+                <defs><pattern id="dots" width="10" height="10" patternUnits="userSpaceOnUse"><circle cx="1" cy="1" r="1" fill="var(--map-dot)"/></pattern></defs>
+                <rect width="360" height="262" fill="url(#dots)"/>
+                <ellipse class="orr" cx="186" cy="140" rx="168" ry="122"/>
+                <path class="road" d="M0 62 L360 74 M126 0 L172 262 M268 0 L242 262 M0 236 L360 246 M0 196 C80 190 140 214 200 206"/>
+                <path class="river" d="M0 118 C50 124 92 110 140 116 S236 134 286 124 S340 110 360 112"/>
+                <path class="water" d="M10 92 C12 76 32 72 46 78 C58 84 56 100 44 106 C30 112 8 106 10 92Z"/>
+                <path class="water" d="M20 196 C24 186 44 184 56 192 C64 200 54 212 40 212 C26 212 18 204 20 196Z"/>
+                <path class="water" d="M206 84 C210 76 226 76 232 84 C236 92 228 100 218 100 C208 100 202 92 206 84Z"/>
+                <text class="lbl lake" x="28" y="68" text-anchor="middle">Osman Sagar</text>
+                <text class="lbl lake" x="40" y="225" text-anchor="middle">Himayat Sagar</text>
+                <text class="lbl lake" x="219" y="72" text-anchor="middle">Hussain Sagar</text>
+                <g id="routes">
+                  <path id="r3" class="rt line dim" d="M156 16 C146 42 128 62 112 82 C96 102 78 120 60 134 C52 140 44 146 38 150"/>
+                  <path id="r2" class="rt line dim" d="M338 60 C314 70 294 88 272 102 C250 116 224 124 196 130 C168 136 140 142 114 146 C92 149 62 151 38 150"/>
+                  <path class="rt casing" d="M338 234 C322 228 308 218 292 210 C276 202 262 200 248 194 C232 187 222 180 206 174 C190 168 176 164 160 160 C140 155 124 154 108 152 C92 150 76 148 62 151 C52 153 44 152 38 150"/>
+                  <path id="r1" class="rt line" d="M338 234 C322 228 308 218 292 210 C276 202 262 200 248 194 C232 187 222 180 206 174 C190 168 176 164 160 160 C140 155 124 154 108 152 C92 150 76 148 62 151 C52 153 44 152 38 150"/>
+                </g>
+                <g id="stops"></g>
+                <g id="homepin"></g>
+                <g class="campus" transform="translate(38 150)"><rect x="-15" y="-27" width="30" height="13" rx="3"/><text y="-17.5">CBIT</text></g>
+                <g id="buses"></g>
+                <g class="compass" transform="translate(344 20)"><path d="M0 -9 L4 3 L0 0 L-4 3Z"/><text y="14">N</text></g>
+                <text class="disclaim" x="8" y="255">Schematic · not to scale</text>
+              </svg>
+              <div class="legend"><span><i class="l1"></i>Live</span><span><i class="l2"></i>Late updates</span><span><i class="l3"></i>Signal lost</span></div>
+            </div>
+
+            <div class="card" id="tlCard" hidden>
+              <div class="card-h"><span id="tlTitle"></span><span id="tlNow"></span></div>
+              <ol class="tl" id="timeline"></ol>
+            </div>
+          </section>
+
+          <!-- search -->
+          <section class="view" data-view="search">
+            <h2 class="title">Find your stop</h2>
+            <label class="search">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><circle cx="11" cy="11" r="7"/><path d="m20 20-4-4"/></svg>
+              <input id="q" placeholder="Stop or area — e.g. Dilsukhnagar" autocomplete="off" spellcheck="false" aria-label="Stop or area">
+            </label>
+            <div class="chips"><span class="muted small">Try misspelling it:</span>
+              <button class="chip" data-q="dilsuknagar">dilsuknagar</button>
+              <button class="chip" data-q="kothi">kothi</button>
+              <button class="chip" data-q="lb ngr">lb ngr</button>
+              <button class="chip" data-q="secbad">secbad</button>
+            </div>
+            <p class="muted small" id="qHint" style="margin:6px 2px 0;min-height:19px"></p>
+            <ul class="results" id="results"></ul>
+          </section>
+
+          <!-- inbox -->
+          <section class="view" data-view="inbox">
+            <div class="row-between"><h2 class="title">Alerts</h2><button class="link" id="markRead">Mark all read</button></div>
+            <div class="chips" id="tiers" style="margin-top:0"></div>
+            <ul class="stubs" id="inboxList"></ul>
+          </section>
+
+          <!-- settings -->
+          <section class="view" data-view="settings">
+            <h2 class="title">Settings</h2>
+            <div class="card list" style="padding:4px 0">
+              <div class="row"><div><b>Home pin</b><small>Saroornagar · stored to the nearest ~100 m</small></div><span class="minimap"></span></div>
+              <div class="row"><div><b>Safety margin</b><small>Added to every "leave in"</small></div>
+                <div class="seg" id="bufferSeg"><button data-b="1">1</button><button data-b="2" class="on">2</button><button data-b="5">5</button></div>
+              </div>
+            </div>
+            <div class="card list" style="padding:4px 0">
+              <div class="row"><div><b>Leave-now alert</b><small>Main bus · Bus 14 · urgent</small></div><button class="sw on" aria-label="Leave-now alert"></button></div>
+              <div class="row"><div><b>Main bus started</b><small>When Bus 14 begins its trip</small></div><button class="sw on" aria-label="Main bus started"></button></div>
+              <div class="row"><div><b>Starred buses</b><small>Bus 27 · lighter alerts</small></div><button class="sw on" aria-label="Starred buses"></button></div>
+              <div class="row"><div><b>Quiet hours</b><small>22:00 – 06:00</small></div><button class="sw on" aria-label="Quiet hours"></button></div>
+            </div>
+            <div class="card list" style="padding:4px 0">
+              <div class="row"><div><b>Critical alerts</b><small>Always on · SMS if push fails</small></div><button class="sw on lock" aria-label="Critical alerts are always on" disabled></button></div>
+            </div>
+            <p class="fine center" style="margin-top:16px">Signed in as 160123737045</p>
+          </section>
+        </div>
+
+        <div class="toast" id="toast"></div>
+        <div class="sheet-back" id="sheetBack"></div>
+        <div class="sheet" id="sheet">
+          <div class="grab"></div>
+          <div class="row-between"><h3 id="shTitle">Bus 14</h3><button class="link" id="shClose">Close</button></div>
+          <div class="muted small" id="shRoute"></div>
+          <dl>
+            <div><dt>Status</dt><dd id="shState"></dd></div>
+            <div><dt>Last position</dt><dd id="shLast"></dd></div>
+            <div><dt>Next stop</dt><dd id="shNext"></dd></div>
+            <div><dt>Speed</dt><dd id="shSpeed"></dd></div>
+          </dl>
+          <div class="note" id="shNote" hidden></div>
+        </div>
+
+        <nav class="tabbar" id="tabbar">
+          <button class="tab" data-tab="home"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"><path d="M9 4 3 6v14l6-2 6 2 6-2V4l-6 2-6-2Z"/><path d="M9 4v14M15 6v14"/></svg>Live</button>
+          <button class="tab" data-tab="search"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="11" cy="11" r="7"/><path d="m20 20-4-4"/></svg>Search</button>
+          <button class="tab" data-tab="inbox"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 16V11a6 6 0 1 1 12 0v5l2 2H4l2-2Z"/><path d="M10 21h4"/></svg>Alerts<span class="badge" id="badge" hidden></span></button>
+          <button class="tab" data-tab="settings"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M4 7h10M18 7h2M4 17h4M12 17h8"/><circle cx="16" cy="7" r="2"/><circle cx="10" cy="17" r="2"/></svg>Settings</button>
+        </nav>
+        <div class="homebar"></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ── presenter panel ────────────────────────────────────────────────────────────────────── -->
+  <aside class="controls" aria-label="Presenter controls">
+    <div class="panel">
+      <div class="panel-h"><span class="pulse"></span>Presenter<span class="tag">Offline · simulated</span></div>
+      <div class="scen">
+        <button id="btnLeave"><span class="ic g"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><circle cx="13" cy="4" r="2"/><path d="m7 21 3-7 3 2v5M10 14l1-5 4 3 3 1M8 10l3-1"/></svg></span><span><b>Leave now</b><small>Bus 14 jumps to 10 min out</small></span><kbd>L</kbd></button>
+        <button id="btnDz"><span class="ic a"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M2 8.5a15 15 0 0 1 20 0M5 12a10 10 0 0 1 14 0M8.5 15.5a5 5 0 0 1 7 0"/><path d="M3 3l18 18"/></svg></span><span><b class="lbl">Dead zone</b><small>Bus 14 loses its signal</small></span><kbd>D</kbd></button>
+        <button id="btnBreak"><span class="ic r"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3 2 20h20L12 3Z"/><path d="M12 10v4M12 17h.01"/></svg></span><span><b>Bus breakdown</b><small>Critical alert, with a ticket</small></span><kbd>B</kbd></button>
+        <button id="btnAnn"><span class="ic b"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 10v4h4l6 4V6L7 10H3Z"/><path d="M17 8a5 5 0 0 1 0 8"/></svg></span><span><b>Announcement</b><small>Event-day timing from the Transport Dept</small></span><kbd>A</kbd></button>
+        <button id="btnReset"><span class="ic m"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12a9 9 0 1 0 3-6.7L3 8"/><path d="M3 3v5h5"/></svg></span><span><b>Reset</b><small>Back to 07:24, Bus 14 13 min out</small></span><kbd>R</kbd></button>
+      </div>
+      <div class="speed"><span>Simulated time</span>
+        <div class="seg" id="speed"><button data-s="0">❚❚</button><button data-s="1">1×</button><button data-s="4" class="on">4×</button><button data-s="10">10×</button></div>
+      </div>
+      <div class="keys"><span><kbd>1</kbd>–<kbd>5</kbd> chapters</span><span><kbd>T</kbd> theme</span><span><kbd>H</kbd> hide panels</span><span><kbd>S</kbd> speed</span></div>
+    </div>
+    <p class="honest">This page runs fully offline. The buses, codes and alerts are simulated in the browser — there is no backend and no network.</p>
+  </aside>
+</div>
+
+<script>
+(() => {
+  'use strict';
+
+  // ── helpers ───────────────────────────────────────────────────────────────────────────────
+  const $ = (s, r = document) => r.querySelector(s);
+  const $$ = (s, r = document) => [...r.querySelectorAll(s)];
+  const NS = 'http://www.w3.org/2000/svg';
+  const svg = (tag, attrs, parent) => {
+    const n = document.createElementNS(NS, tag);
+    for (const k in attrs) n.setAttribute(k, attrs[k]);
+    if (parent) parent.appendChild(n);
+    return n;
+  };
+  const esc = (s) => String(s).replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' })[c]);
+  const md = (s) => esc(s).replace(/\*\*([^*]+)\*\*/g, '<strong>$1</strong>');
+  const pad = (n) => String(n).padStart(2, '0');
+  const clock = (ms) => { const d = new Date(ms); return `${pad(d.getHours())}:${pad(d.getMinutes())}`; };
+  const clamp = (x, a, b) => Math.max(a, Math.min(b, x));
+
+  // ── data ──────────────────────────────────────────────────────────────────────────────────
+  const START = (() => { const d = new Date(); d.setHours(7, 24, 0, 0); return d.getTime(); })();
+  const DAY = 86400e3;
+  const at = (dayOffset, h, m) => { const d = new Date(START + dayOffset * DAY); d.setHours(h, m, 0, 0); return d.getTime(); };
+  const ROLL = '160123737045';
+  const OTP = '482913';
+  const WALK = 5; // minutes from the home pin to the stop
+
+  // label: [dx, dy, anchor] — only some stops are labelled, to keep the map readable
+  const ROUTES = {
+    r1: { name: 'Route 1 · Hayathnagar → CBIT', short: 'Route 1', trip: 60, stops: [
+      ['Hayathnagar', 0, [-2, 14, 'end']], ['Vanasthalipuram', 0.1], ['LB Nagar', 0.2, [6, 13, 'start']],
+      ['Kothapet', 0.3], ['Dilsukhnagar', 0.42, [-2, -10, 'middle']], ['Malakpet', 0.52], ['Mehdipatnam', 0.68, [0, 14, 'middle']],
+      ['Tolichowki', 0.77], ['Narsingi', 0.88], ['CBIT Gandipet', 1] ] },
+    r2: { name: 'Route 4 · Uppal → CBIT', short: 'Route 4', trip: 50, stops: [
+      ['Uppal X Roads', 0, [-4, -7, 'end']], ['Tarnaka', 0.15], ['Secunderabad', 0.3, [0, -8, 'middle']], ['Begumpet', 0.45],
+      ['Banjara Hills', 0.62], ['Gachibowli', 0.8], ['CBIT Gandipet', 1] ] },
+    r3: { name: 'Route 6 · Miyapur → CBIT', short: 'Route 6', trip: 45, stops: [
+      ['Miyapur', 0, [6, 4, 'start']], ['Kukatpally', 0.22], ['JNTU', 0.35], ['Kondapur', 0.55], ['Hitec City', 0.75], ['CBIT Gandipet', 1] ] },
+  };
+  for (const R of Object.values(ROUTES)) R.stops = R.stops.map(([name, f, lbl]) => ({ name, f, lbl }));
+  const DSNR = 4; // Dilsukhnagar on route 1
+
+  const BUSES = { 5: { n: 5, route: 'r1' }, 9: { n: 9, route: 'r3' }, 14: { n: 14, route: 'r1' }, 22: { n: 22, route: 'r2' } };
+  const SCHEDULED = { r1: [{ n: 31, at: '07:55' }], r2: [{ n: 27, at: '07:40' }], r3: [{ n: 12, at: '08:05' }] };
+  const ALIASES = {
+    Dilsukhnagar: ['dilsuknagar', 'dilshuknagar', 'dsnr', 'dilsukh nagar'],
+    'LB Nagar': ['lbnagar', 'lal bahadur nagar', 'lb ngr', 'elbee nagar'],
+    Kothapet: ['kotha pet', 'kothapeta'],
+    Secunderabad: ['secbad', 'sec bad', 'secunderabad station', 'scb'],
+    'Uppal X Roads': ['uppal', 'uppal cross roads'],
+    'CBIT Gandipet': ['cbit', 'college', 'gandipet'],
+    Tolichowki: ['toli chowki', 'tolichowk'],
+    Mehdipatnam: ['mehdi', 'mehdipatnum'],
+    'Hitec City': ['hitech city', 'hi tech city', 'cyber towers'],
+    Vanasthalipuram: ['vanasthali', 'vanastalipuram'],
+  };
+  const TIERS = [
+    { name: 'Critical', cls: 't0' }, { name: 'Urgent', cls: 't1' }, { name: 'Important', cls: 't2' }, { name: 'Info', cls: 't3' },
+  ];
+
+  // ── state ─────────────────────────────────────────────────────────────────────────────────
+  const S = {
+    view: 'welcome', speed: 4, sim: START, onboarded: false,
+    follow: null, sub: 'active', leaveSent: false, buffer: 2,
+    dz: null, broken: false, inbox: [], tier: null, sheet: null, step: 0, otpDone: false,
+  };
+  let nextId = 1;
+  const seedInbox = () => [
+    { id: nextId++, tier: 1, title: 'Bus 14 started its morning trip', body: 'It left Hayathnagar on time. Follow it to see when to leave.', at: START - 12 * 60e3, unread: true },
+    { id: nextId++, tier: 0, title: 'Bus 18 is back in service', body: 'Route 2 runs as normal from this evening.', at: at(-1, 17, 5), ticket: 'Back in service', unread: false, ack: true },
+    { id: nextId++, tier: 2, title: 'Stop moved: Uppal X Roads', body: 'From Monday the Route 4 stop moves **200 m towards Ramanthapur**, outside the metro station.', at: at(-1, 13, 40), unread: false },
+    { id: nextId++, tier: 3, title: 'Weekend timetable', body: 'Saturday buses leave campus at 1:30 PM.', at: at(-2, 9, 0), unread: false },
+  ];
+
+  // ── map geometry ──────────────────────────────────────────────────────────────────────────
+  for (const [id, R] of Object.entries(ROUTES)) { R.el = $('#' + id); R.len = R.el.getTotalLength(); }
+  const pt = (R, f) => R.el.getPointAtLength(clamp(f, 0, 1) * R.len);
+
+  function buildMap() {
+    const gStops = $('#stops');
+    for (const [id, R] of Object.entries(ROUTES)) {
+      R.stops.forEach((st, i) => {
+        if (i === R.stops.length - 1) return; // the campus has its own marker
+        const p = pt(R, st.f);
+        st.p = p;
+        st.node = svg('circle', { cx: p.x, cy: p.y, r: id === 'r1' ? 3.4 : 2.4, class: 'stop' + (id === 'r1' ? '' : ' minor') }, gStops);
+        if (st.lbl) {
+          const [dx, dy, anchor] = st.lbl;
+          st.label = svg('text', { x: p.x + dx, y: p.y + dy, 'text-anchor': anchor, class: 'lbl' }, gStops);
+          st.label.textContent = st.name;
+        }
+      });
+    }
+    const gBus = $('#buses');
+    for (const b of Object.values(BUSES)) {
+      const g = svg('g', { class: 'bus', 'data-state': 'LIVE', tabindex: 0, role: 'button', 'aria-label': `Bus ${b.n}` }, gBus);
+      svg('circle', { class: 'halo', r: 12 }, g);
+      svg('rect', { x: -14, y: -9, width: 28, height: 18, rx: 9 }, g);
+      const t = svg('text', { class: 'n', y: 3.6 }, g); t.textContent = b.n;
+      b.note = svg('text', { class: 'note', y: 21 }, g);
+      b.g = g;
+      g.addEventListener('click', () => openSheet(b.n));
+      g.addEventListener('keydown', (e) => { if (e.key === 'Enter') openSheet(b.n); });
+    }
+  }
+
+  function resetBuses() {
+    BUSES[14].f = ROUTES.r1.stops[DSNR].f - 13 / 60;
+    BUSES[5].f = 0.72; BUSES[22].f = 0.18; BUSES[9].f = 0.34;
+    for (const b of Object.values(BUSES)) Object.assign(b, { fixF: b.f, shown: b.f, fixAt: S.sim, state: 'LIVE', recoveredAt: -Infinity });
+  }
+
+  // ── ETA: a range, never a point (ARCH §5.5) ───────────────────────────────────────────────
+  function eta(b, stopF) {
+    const R = ROUTES[b.route];
+    if (b.fixF > stopF + 0.002) return { passed: true };
+    if (b.state === 'DARK') return null;
+    const age = (S.sim - b.fixAt) / 60e3;
+    const p50 = Math.max(0, (stopF - b.fixF) * R.trip - age);
+    const spread = 0.18 * p50 + 0.9 + (b.state === 'DEGRADED' ? 1 : 0);
+    const conf = b.state === 'DEGRADED' ? 'low' : S.sim - b.recoveredAt < 120e3 ? 'medium' : 'high';
+    return { p50, p90: p50 + spread, conf };
+  }
+  const range = (e) => {
+    if (e.p50 < 0.6) return 'Due';
+    const a = Math.max(1, Math.round(e.p50));
+    return `${a}–${Math.max(a + 1, Math.round(e.p90))}`;
+  };
+  const etaLabel = (e) => (e.p50 < 0.6 ? 'Due now' : range(e) + ' min');
+
+  // ── simulation loop ───────────────────────────────────────────────────────────────────────
+  let lastT = performance.now();
+  let lastText = 0;
+  function tick(t) {
+    const dt = Math.min(0.1, (t - lastT) / 1000);
+    lastT = t;
+    const sdt = dt * S.speed;
+    S.sim += sdt * 1000;
+    for (const b of Object.values(BUSES)) {
+      b.f += sdt / (ROUTES[b.route].trip * 60);
+      if (b.f >= 1) {
+        if (b.n === 14) b.f = 1;
+        else { b.f = 0; b.fixF = 0; b.shown = 0; }
+      }
+      if (!(S.dz && b.n === 14)) { b.fixF = b.f; b.fixAt = S.sim; }
+      const age = S.sim - b.fixAt;
+      b.state = age > 90e3 ? 'DARK' : age > 30e3 ? 'DEGRADED' : 'LIVE';
+      b.shown += (b.fixF - b.shown) * Math.min(1, dt * 2.5); // glide between fixes
+      const p = pt(ROUTES[b.route], b.shown);
+      b.g.setAttribute('transform', `translate(${p.x.toFixed(1)} ${p.y.toFixed(1)})`);
+    }
+    if (S.dz && S.sim > S.dz.until) restoreSignal();
+    if (t - lastText > 250) { lastText = t; render(); }
+    requestAnimationFrame(tick);
+  }
+
+  // ── rendering ─────────────────────────────────────────────────────────────────────────────
+  function render() {
+    const d = new Date(S.sim);
+    $('#clock').textContent = `${d.getHours() % 12 || 12}:${pad(d.getMinutes())}`;
+    $('#running').textContent = `${Object.keys(BUSES).length} buses in view`;
+    for (const b of Object.values(BUSES)) {
+      b.g.dataset.state = b.state;
+      b.g.classList.toggle('mine', !!S.follow && S.follow.bus === b.n);
+      b.note.textContent = b.state === 'DEGRADED' ? `${Math.round((S.sim - b.fixAt) / 1000)} s ago` : b.state === 'DARK' ? 'signal lost' : '';
+    }
+    renderMapMeta();
+    renderHero();
+    if (S.view === 'home') renderTimeline();
+    if (S.view === 'search') updateResultEtas();
+    if (S.sheet) renderSheet();
+  }
+
+  function renderMapMeta() {
+    const fr = S.follow ? BUSES[S.follow.bus].route : 'r1';
+    for (const [id, R] of Object.entries(ROUTES)) {
+      R.el.classList.toggle('dim', id !== fr);
+      R.stops.forEach((st, i) => {
+        const mine = !!S.follow && id === fr && i === S.follow.stop;
+        if (st.node) st.node.classList.toggle('mine', mine);
+        if (st.label) st.label.classList.toggle('mine', mine);
+      });
+    }
+    const g = $('#homepin');
+    const key = S.follow ? `${fr}:${S.follow.stop}` : '';
+    if (g.dataset.key === key) return;
+    g.dataset.key = key;
+    g.textContent = '';
+    if (!S.follow) return;
+    const st = ROUTES[fr].stops[S.follow.stop];
+    if (!st.p) return;
+    const h = { x: st.p.x - 24, y: st.p.y + 30 };
+    svg('path', { class: 'walk', d: `M${h.x} ${h.y} Q${st.p.x - 20} ${st.p.y + 8} ${st.p.x} ${st.p.y}` }, g);
+    svg('circle', { class: 'ring', cx: st.p.x, cy: st.p.y, r: 8 }, g);
+    const hg = svg('g', { class: 'home', transform: `translate(${h.x} ${h.y})` }, g);
+    svg('circle', { r: 7 }, hg);
+    svg('path', { d: 'M-3.5 0.5 L0 -3 L3.5 0.5 V3.5 H-3.5Z' }, hg);
+    const t = svg('text', { class: 'lbl', x: h.x - 10, y: h.y + 3, 'text-anchor': 'end' }, g);
+    t.textContent = `Home · ${WALK} min walk`;
+    if (!st.label) {
+      const l = svg('text', { class: 'lbl mine', x: st.p.x, y: st.p.y - 9, 'text-anchor': 'middle' }, g);
+      l.textContent = st.name;
+    }
+  }
+
+  function setFlap(node, text) {
+    const chars = [...text];
+    while (node.children.length < chars.length) node.appendChild(Object.assign(document.createElement('span'), { className: 'f' }));
+    while (node.children.length > chars.length) node.lastChild.remove();
+    chars.forEach((ch, i) => {
+      const c = node.children[i];
+      if (c.dataset.ch === ch) return;
+      c.dataset.ch = ch;
+      c.classList.toggle('sep', ch === '–' || ch === ' ');
+      if (!c.textContent) { c.textContent = ch; return; }
+      c.classList.remove('flip');
+      void c.offsetWidth;
+      c.style.animationDelay = i * 50 + 'ms';
+      c.classList.add('flip');
+      setTimeout(() => { if (c.dataset.ch === ch) c.textContent = ch; }, 160 + i * 50);
+    });
+  }
+
+  function renderHero() {
+    const hero = $('#hero');
+    hero.classList.toggle('empty', !S.follow);
+    if (!S.follow) { hero.dataset.tone = ''; return; }
+    const b = BUSES[S.follow.bus];
+    const R = ROUTES[b.route];
+    const st = R.stops[S.follow.stop];
+    const e = eta(b, st.f);
+    if (S.sub === 'active' && e && e.passed) S.sub = 'missed';
+    $('#hRoute').textContent = R.name;
+    $('#hBus').textContent = b.n;
+    $('#hStop').textContent = st.name;
+
+    let tone = '';
+    let status = '';
+    const showEta = S.sub !== 'missed' && b.state !== 'DARK' && e && !e.passed;
+    setFlap($('#flap'), showEta ? range(e) : '--');
+    $('#unit').hidden = !showEta || e.p50 < 0.6;
+    const conf = $('#conf');
+    conf.hidden = !showEta;
+    if (showEta) { conf.className = 'conf ' + e.conf; conf.title = conf.ariaLabel = `${e.conf} confidence`; }
+
+    if (S.sub === 'missed') {
+      tone = 'warn';
+      status = `<span class="warn">Bus ${b.n} has passed ${esc(st.name)}.</span> <button class="link" data-go="search">Find another bus</button>`;
+    } else if (S.sub === 'boarded') {
+      status = `<span class="ok">You're on Bus ${b.n}. Alerts are paused for 3 hours; critical ones still come through.</span>`;
+    } else if (b.state === 'DARK') {
+      tone = 'dark';
+      const near = lastPassed(b);
+      status = `<span class="dark">Signal lost at ${clock(b.fixAt)}. No arrival time until it reports again.</span>` +
+        `<span class="note">Known dead zone near <b>${esc(near)}</b>. It usually clears in about 2 min. The map shows where the bus last was.</span>`;
+    } else if (b.state === 'DEGRADED') {
+      tone = 'warn';
+      status = `<span class="warn">Last update ${Math.round((S.sim - b.fixAt) / 1000)} s ago — this may be out of date.</span>`;
+    } else {
+      status = `<span class="ok"><span class="pulse"></span>Updated just now · ${b.n === 14 ? 'on time' : 'running'}</span>`;
+    }
+    hero.dataset.tone = tone;
+    const hs = $('#hStatus');
+    if (hs.dataset.html !== status) { hs.innerHTML = status; hs.dataset.html = status; }
+
+    const leave = $('#leave');
+    const active = S.sub === 'active' && showEta;
+    leave.hidden = !active;
+    $('#aboard').textContent = S.sub === 'boarded' ? 'Not on the bus yet' : "I'm on the bus";
+    if (!active) return;
+    const spread = e.p90 - e.p50;
+    const leaveIn = e.p50 - WALK - S.buffer - spread;
+    const go = S.leaveSent || leaveIn <= 0;
+    leave.classList.toggle('go', go);
+    $('#leaveBig').textContent = go ? 'Leave now' : `Leave in ${Math.max(1, Math.floor(leaveIn))} min`;
+    $('#leaveWhy').textContent = `${WALK} min walk + ${S.buffer} min margin` + (spread >= 1 ? ` + ${Math.round(spread)} min because the bus's time is uncertain` : '');
+    $('#fuse').style.width = clamp(leaveIn / 8, 0, 1) * 100 + '%';
+    if (go && !S.leaveSent && S.onboarded) {
+      S.leaveSent = true;
+      notify({ tier: 1, title: 'Leave now', body: `Bus ${b.n} reaches **${st.name}** in about ${Math.round(e.p50)} min. Start walking now to be there with time to spare.`,
+        actions: [{ label: 'On my way', fn: () => toast('Have a good trip') }, { label: "I'm on the bus", fn: () => { S.sub = 'boarded'; } }] });
+    }
+  }
+
+  function lastPassed(b) {
+    const R = ROUTES[b.route];
+    let name = R.stops[0].name;
+    for (const st of R.stops) if (st.f <= b.fixF) name = st.name;
+    return name;
+  }
+
+  function renderTimeline() {
+    const card = $('#tlCard');
+    card.hidden = !S.follow;
+    if (!S.follow) return;
+    const b = BUSES[S.follow.bus];
+    const R = ROUTES[b.route];
+    $('#tlTitle').textContent = `${R.short} · ${R.stops.length} stops`;
+    $('#tlNow').textContent = `Bus ${b.n}`;
+    let nextFound = false;
+    let lastIdx = -1;
+    R.stops.forEach((st, i) => { if (b.fixF >= st.f - 0.001) lastIdx = i; });
+    const html = R.stops.map((st, i) => {
+      const passed = i <= lastIdx;
+      const next = !passed && !nextFound && (nextFound = true);
+      const mine = i === S.follow.stop;
+      let right = '';
+      if (passed) right = clock(b.fixAt - (b.fixF - st.f) * R.trip * 60e3);
+      else if (mine) { const e = eta(b, st.f); right = e && !e.passed ? etaLabel(e) : '—'; }
+      else if (b.state !== 'DARK') right = '~' + clock(b.fixAt + (st.f - b.fixF) * R.trip * 60e3);
+      const here = i === lastIdx
+        ? `<span class="here ${b.state === 'DEGRADED' ? 'warn' : b.state === 'DARK' ? 'dark' : ''}">${b.n}</span>` : '';
+      return `<li class="${passed ? 'passed' : ''} ${next ? 'next' : ''} ${mine ? 'mine' : ''}">
+        <span class="rail"><span class="d"></span>${i < R.stops.length - 1 ? '<span class="seg-l"></span>' : ''}</span>
+        <span class="nm"><span><b style="font-weight:${mine ? 800 : 500}">${esc(st.name)}</b>${mine ? '<span class="you">your stop</span>' : ''}${here}</span><span class="r">${right}</span></span>
+      </li>`;
+    }).join('');
+    const ol = $('#timeline');
+    if (ol.dataset.html !== html) { ol.innerHTML = html; ol.dataset.html = html; }
+  }
+
+  // ── search: forgiving of misspellings ─────────────────────────────────────────────────────
+  const norm = (s) => s.toLowerCase().replace(/[^a-z0-9]/g, '');
+  const STOPS = [];
+  {
+    const byName = {};
+    for (const [rid, R] of Object.entries(ROUTES)) {
+      R.stops.forEach((st, i) => {
+        let s = byName[st.name];
+        if (!s) { s = byName[st.name] = { name: st.name, aliases: ALIASES[st.name] || [], refs: [] }; STOPS.push(s); }
+        s.refs.push({ route: rid, idx: i });
+      });
+    }
+  }
+  function lev(a, b) {
+    const m = Array.from({ length: a.length + 1 }, (_, i) => [i]);
+    for (let j = 1; j <= b.length; j++) m[0][j] = j;
+    for (let i = 1; i <= a.length; i++) for (let j = 1; j <= b.length; j++)
+      m[i][j] = Math.min(m[i - 1][j] + 1, m[i][j - 1] + 1, m[i - 1][j - 1] + (a[i - 1] === b[j - 1] ? 0 : 1));
+    return m[a.length][b.length];
+  }
+  function dice(a, b) {
+    if (a.length < 2 || b.length < 2) return 0;
+    const grams = (s) => Array.from({ length: s.length - 1 }, (_, i) => s.slice(i, i + 2));
+    const A = grams(a); const B = grams(b); const pool = new Map();
+    A.forEach((g) => pool.set(g, (pool.get(g) || 0) + 1));
+    let hit = 0;
+    B.forEach((g) => { const c = pool.get(g); if (c) { hit++; pool.set(g, c - 1); } });
+    return (2 * hit) / (A.length + B.length);
+  }
+  function score(q, stop) {
+    let best = 0;
+    for (const t of [stop.name, ...stop.aliases]) {
+      const n = norm(t);
+      if (n.startsWith(q)) return 1;
+      if (n.includes(q)) best = Math.max(best, 0.9);
+      best = Math.max(best, dice(q, n), 1 - lev(q, n) / Math.max(q.length, n.length));
+    }
+    return best;
+  }
+
+  function renderResults() {
+    const raw = $('#q').value;
+    const q = norm(raw);
+    $$('.chip[data-q]').forEach((c) => c.classList.toggle('on', c.dataset.q === raw));
+    const ul = $('#results');
+    const hint = $('#qHint');
+    if (q.length < 2) { ul.innerHTML = ''; hint.textContent = ''; return; }
+    const res = STOPS.map((s) => ({ s, sc: score(q, s) })).filter((x) => x.sc >= 0.5).sort((a, b) => b.sc - a.sc).slice(0, 4);
+    hint.innerHTML = !res.length ? `No stops found for “${esc(raw)}”. Try the area name.`
+      : res[0].sc < 0.9 ? `Showing results for <b style="color:var(--ink)">${esc(res[0].s.name)}</b>` : '';
+    ul.innerHTML = res.map(({ s }) => stopCard(s)).join('');
+    updateResultEtas();
+  }
+
+  function stopCard(s) {
+    const lines = [];
+    for (const ref of s.refs) {
+      for (const b of Object.values(BUSES)) if (b.route === ref.route) lines.push(
+        `<div class="bl"><span class="bl-n">Bus ${b.n}</span><span class="bl-d" data-eta="${b.n}:${ref.idx}"></span><button class="btn xs" data-follow="${b.n}:${ref.idx}">Follow</button></div>`);
+      for (const x of SCHEDULED[ref.route]) lines.push(
+        `<div class="bl"><span class="bl-n">Bus ${x.n}</span><span class="bl-d muted" data-sched="${x.n}" data-at="${x.at}"></span><span></span></div>`);
+    }
+    return `<li class="stop-card"><div class="sc-head"><span class="pin"><svg viewBox="0 0 24 24" fill="currentColor"><path d="M12 2a7 7 0 0 0-7 7c0 5 7 13 7 13s7-8 7-13a7 7 0 0 0-7-7Zm0 9.5A2.5 2.5 0 1 1 12 6.5a2.5 2.5 0 0 1 0 5Z"/></svg></span>
+      <div><b>${esc(s.name)}</b><small>${[...new Set(s.refs.map((r) => ROUTES[r.route].short))].join(' · ')}</small></div></div>${lines.join('')}</li>`;
+  }
+
+  function updateResultEtas() {
+    $$('[data-eta]').forEach((n) => {
+      const [bn, idx] = n.dataset.eta.split(':').map(Number);
+      const b = BUSES[bn];
+      const e = eta(b, ROUTES[b.route].stops[idx].f);
+      let text; let cls; let conf = '';
+      if (e && e.passed) { text = 'already passed'; cls = 'muted'; }
+      else if (b.state === 'DARK') { text = 'signal lost'; cls = 'dark'; }
+      else { text = etaLabel(e) + (b.state === 'DEGRADED' ? ' · late signal' : ''); cls = b.state === 'DEGRADED' ? 'warn' : 'live'; conf = e.conf; }
+      const html = esc(text) + (conf ? `<span class="conf ${conf}"></span>` : '') + (cls === 'live' ? '<span class="muted" style="font-size:12px;font-weight:500">· running</span>' : '');
+      if (n.dataset.html !== html) { n.innerHTML = html; n.dataset.html = html; n.className = 'bl-d ' + cls; }
+      const btn = n.nextElementSibling;
+      const following = S.follow && S.follow.bus === bn && S.follow.stop === idx;
+      btn.hidden = !!(e && e.passed);
+      btn.textContent = following ? 'Following' : 'Follow';
+      btn.classList.toggle('on', !!following);
+    });
+    $$('[data-sched]').forEach((n) => {
+      const out = S.broken && n.dataset.sched === '27';
+      n.textContent = out ? 'out of service today' : `${n.dataset.at} · scheduled`;
+      n.className = 'bl-d ' + (out ? 'dark' : 'muted');
+    });
+  }
+
+  function follow(bus, stop) {
+    S.follow = { bus, stop };
+    S.sub = 'active';
+    S.leaveSent = false;
+  }
+
+  // ── inbox ─────────────────────────────────────────────────────────────────────────────────
+  function when(ms) {
+    const days = Math.round((new Date(START).setHours(0, 0, 0, 0) - new Date(ms).setHours(0, 0, 0, 0)) / DAY);
+    return days <= 0 ? clock(ms) : days === 1 ? 'Yesterday' : `${days} days ago`;
+  }
+  function renderInbox() {
+    $('#tiers').innerHTML = [['All', null], ...TIERS.map((t, i) => [t.name, i])]
+      .map(([name, i]) => `<button class="chip ${S.tier === i ? 'on' : ''}" data-tier="${i}">${name}</button>`).join('');
+    const items = S.inbox.filter((x) => S.tier === null || x.tier === S.tier).sort((a, b) => b.at - a.at);
+    $('#inboxList').innerHTML = items.map((x) => `
+      <li class="stub ${TIERS[x.tier].cls} ${x.unread ? 'unread' : ''}" data-id="${x.id}">
+        <div class="stub-l"><span class="tier">${TIERS[x.tier].name}</span><span class="stub-time">${when(x.at)}</span></div>
+        <div class="stub-r"><b>${esc(x.title)}</b><p>${md(x.body)}</p>
+          ${x.ticket ? `<span class="ticket ${x.ticket === 'Back in service' ? 'ok' : ''}"><i></i>${esc(x.ticket)}</span>` : ''}
+          <div class="stub-meta">${x.from ? `<span>${esc(x.from)}</span>` : ''}${x.quiet ? '<span class="quiet">Recorded · not pushed while you\'re aboard</span>' : ''}
+          ${x.tier === 0 && !x.ack ? `<button class="btn xs on" data-ack="${x.id}">Got it</button>` : x.tier === 0 ? '<span>Acknowledged ✓</span>' : ''}</div>
+        </div>
+      </li>`).join('') || '<p class="muted center" style="margin-top:30px">Nothing here.</p>';
+  }
+  function updateBadge(bump) {
+    const n = S.inbox.filter((x) => x.unread).length;
+    const b = $('#badge');
+    b.hidden = !n;
+    b.textContent = n;
+    if (bump) { b.classList.remove('bump'); void b.offsetWidth; b.classList.add('bump'); }
+  }
+
+  // ── notifications: banner + inbox record ──────────────────────────────────────────────────
+  let pushTimer;
+  let pushTap = null;
+  const BUS_ICON = '<svg viewBox="0 0 24 24" fill="none" stroke="#04150b" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><path d="M4 17 9 9l5 6 6-10"/></svg>';
+  const SMS_ICON = '<svg viewBox="0 0 24 24" fill="#fff"><path d="M12 3C6.5 3 2 6.6 2 11c0 2.4 1.3 4.6 3.4 6L4.5 21l4.2-2.3c1 .2 2.1.3 3.3.3 5.5 0 10-3.6 10-8s-4.5-8-10-8Z"/></svg>';
+
+  function banner({ app = 'Bus Mitra', sms = false, title, body, crit = false, actions = [], onTap = null, ms = 7000 }) {
+    const p = $('#push');
+    p.className = 'push' + (crit ? ' crit' : '');
+    p.innerHTML = `<div class="push-h"><span class="appicon ${sms ? 'sms' : ''}">${sms ? SMS_ICON : BUS_ICON}</span><span class="app">${esc(app)}</span><span class="when">now</span></div>
+      <div class="push-t">${esc(title)}</div><div class="push-b">${md(body)}</div>
+      ${actions.length ? `<div class="push-acts">${actions.map((a, i) => `<button data-act="${i}">${esc(a.label)}</button>`).join('')}</div>` : ''}`;
+    pushTap = (i) => { hideBanner(); if (i !== undefined && actions[i]) actions[i].fn(); else if (onTap) onTap(); };
+    requestAnimationFrame(() => p.classList.add('show'));
+    const ph = $('#phone');
+    ph.classList.remove('buzz'); void ph.offsetWidth; ph.classList.add('buzz');
+    clearTimeout(pushTimer);
+    pushTimer = setTimeout(hideBanner, ms);
+  }
+  function hideBanner() { $('#push').classList.remove('show'); clearTimeout(pushTimer); }
+  $('#push').addEventListener('click', (e) => {
+    const a = e.target.closest('[data-act]');
+    if (pushTap) pushTap(a ? Number(a.dataset.act) : undefined);
+  });
+
+  function notify({ tier, title, body, ticket, from, actions = [] }) {
+    const quiet = S.sub === 'boarded' && tier > 0;
+    const item = { id: nextId++, tier, title, body, at: S.sim, unread: true, ticket, from, quiet, ack: false };
+    S.inbox.push(item);
+    updateBadge(true);
+    if (S.view === 'inbox') renderInbox();
+    if (quiet) { toast('Alert recorded, not pushed — you\'re on the bus'); return; }
+    banner({ title, body, crit: tier === 0, actions, onTap: () => go('inbox'), ms: tier === 0 ? 10000 : 7000 });
+  }
+
+  let toastTimer;
+  function toast(msg) {
+    const t = $('#toast');
+    t.textContent = msg;
+    t.classList.add('show');
+    clearTimeout(toastTimer);
+    toastTimer = setTimeout(() => t.classList.remove('show'), 2800);
+  }
+
+  // ── bus sheet ─────────────────────────────────────────────────────────────────────────────
+  function openSheet(n) { S.sheet = n; renderSheet(); $('#sheet').classList.add('show'); $('#sheetBack').classList.add('show'); }
+  function closeSheet() { S.sheet = null; $('#sheet').classList.remove('show'); $('#sheetBack').classList.remove('show'); }
+  function renderSheet() {
+    const b = BUSES[S.sheet];
+    const R = ROUTES[b.route];
+    const age = Math.round((S.sim - b.fixAt) / 1000);
+    const next = R.stops.find((st) => st.f > b.fixF);
+    $('#shTitle').textContent = `Bus ${b.n}`;
+    $('#shRoute').textContent = R.name;
+    const [label, cls] = { LIVE: ['Live', 'st-live'], DEGRADED: ['Late updates', 'st-warn'], DARK: ['Signal lost', 'st-dark'] }[b.state];
+    $('#shState').innerHTML = `<span class="${cls}">${label}</span>`;
+    $('#shLast').textContent = `${clock(b.fixAt)} · ${age < 5 ? 'just now' : age + ' s ago'}`;
+    $('#shNext').textContent = next ? next.name : 'End of route';
+    $('#shSpeed').textContent = b.state === 'LIVE' && b.f < 1 ? `${Math.round(28 + (b.n * 7) % 14 + 4 * Math.sin(S.sim / 17000 + b.n))} km/h` : '—';
+    const note = $('#shNote');
+    note.hidden = b.state === 'LIVE';
+    note.className = 'note ' + (b.state === 'DARK' ? 'dark' : 'warn');
+    note.textContent = b.state === 'DARK'
+      ? `In a known dead zone near ${lastPassed(b)}. It usually clears in about 2 min. The marker shows where it last was — it may have moved since.`
+      : 'This bus has missed its last updates. Its position may be out of date.';
+  }
+
+  // ── navigation ────────────────────────────────────────────────────────────────────────────
+  const ONBOARDING = ['welcome', 'claim', 'otp', 'ready'];
+  function go(view) {
+    S.view = view;
+    $$('.view').forEach((v) => v.classList.toggle('on', v.dataset.view === view));
+    $('#screen').classList.toggle('onboarding', ONBOARDING.includes(view));
+    $$('.tab').forEach((t) => t.classList.toggle('on', t.dataset.tab === view));
+    $('#views').scrollTop = 0;
+    closeSheet();
+    if (view === 'search') renderResults();
+    if (view === 'inbox') renderInbox();
+    if (view === 'home') { $('#timeline').dataset.html = ''; setLed(); }
+    render();
+    syncStep();
+  }
+  document.addEventListener('click', (e) => {
+    const g = e.target.closest('[data-go]');
+    if (g) go(g.dataset.go);
+    const t = e.target.closest('[data-tab]');
+    if (t) go(t.dataset.tab);
+  });
+
+  // ── onboarding: roll number → SMS code → account ──────────────────────────────────────────
+  function typeInto(input, text, done) {
+    clearInterval(input._typing);
+    input.value = '';
+    let i = 0;
+    input._typing = setInterval(() => {
+      input.value += text[i++];
+      input.dispatchEvent(new Event('input'));
+      if (i >= text.length) { clearInterval(input._typing); if (done) done(); }
+    }, 55);
+  }
+  function resetOtp() {
+    S.otpDone = false;
+    $('#otpInput').value = '';
+    paintOtp('');
+    $('#autofill').hidden = true;
+    $('#pwBlock').hidden = true;
+    $('#createAcct').disabled = true;
+    $('#createAcct').textContent = 'Create account';
+    $('#sendCode').disabled = false;
+    $('#sendCode').textContent = 'Send code';
+  }
+  function paintOtp(v) {
+    $$('#otp .cell').forEach((c, i) => {
+      const ch = v[i] || '';
+      if (c.textContent !== ch) { c.textContent = ch; c.classList.toggle('filled', !!ch); }
+    });
+    if (v.length === 6 && !S.otpDone) {
+      S.otpDone = true;
+      $('#autofill').hidden = true;
+      $('#pwBlock').hidden = false;
+      $('#createAcct').disabled = false;
+    }
+  }
+  function fillOtp() {
+    hideBanner();
+    if (S.otpDone || S.view !== 'otp') return;
+    const inp = $('#otpInput');
+    inp.value = '';
+    [...OTP].forEach((d, i) => setTimeout(() => { inp.value += d; paintOtp(inp.value); }, i * 110));
+  }
+  let autoFillTimer;
+  $('#sendCode').addEventListener('click', () => {
+    const roll = $('#roll');
+    const send = () => {
+      const btn = $('#sendCode');
+      btn.disabled = true;
+      btn.innerHTML = '<span class="spin"></span>Sending…';
+      setTimeout(() => {
+        $('#rollEcho').textContent = roll.value;
+        resetOtp();
+        go('otp');
+        setTimeout(() => {
+          if (S.view !== 'otp') return;
+          banner({ app: 'Messages', sms: true, title: 'BW-BUSMTR', body: `**${OTP}** is your Bus Mitra verification code. It expires in 10 minutes. Do not share it with anyone. -CBIT Transport`, onTap: fillOtp, ms: 6000 });
+          $('#autofill').hidden = false;
+          clearTimeout(autoFillTimer);
+          autoFillTimer = setTimeout(fillOtp, 4500);
+        }, 1300);
+      }, 900);
+    };
+    if (roll.value.trim().length < 6) typeInto(roll, ROLL, () => setTimeout(send, 250));
+    else send();
+  });
+  $('#roll').addEventListener('keydown', (e) => { if (e.key === 'Enter') $('#sendCode').click(); });
+  $('#otpInput').addEventListener('input', (e) => { e.target.value = e.target.value.replace(/\D/g, '').slice(0, 6); paintOtp(e.target.value); });
+  $('#autofill').addEventListener('click', fillOtp);
+  $('#createAcct').addEventListener('click', () => {
+    clearTimeout(autoFillTimer);
+    const btn = $('#createAcct');
+    btn.disabled = true;
+    btn.innerHTML = '<span class="spin"></span>Checking…';
+    setTimeout(() => {
+      S.onboarded = true;
+      $('#rollEcho2').textContent = $('#roll').value || ROLL;
+      if (!S.inbox.some((x) => x.title.startsWith('Welcome'))) {
+        S.inbox.push({ id: nextId++, tier: 3, title: 'Welcome to Bus Mitra', body: 'Find your stop, follow your bus, and we\'ll tell you when to leave.', at: S.sim, unread: true });
+        updateBadge();
+      }
+      go('ready');
+    }, 800);
+  });
+  $('#toSearch').addEventListener('click', () => { go('search'); setTimeout(() => $('#q').focus(), 50); });
+
+  // ── home, search, inbox, settings interactions ────────────────────────────────────────────
+  $('#unfollow').addEventListener('click', () => { S.follow = null; toast('Unfollowed'); render(); });
+  $('#aboard').addEventListener('click', () => {
+    S.sub = S.sub === 'boarded' ? 'active' : 'boarded';
+    toast(S.sub === 'boarded' ? 'Alerts paused for 3 h · critical still come through' : 'Alerts back on');
+    render();
+  });
+  $('#q').addEventListener('input', renderResults);
+  $$('.chip[data-q]').forEach((c) => c.addEventListener('click', () => typeInto($('#q'), c.dataset.q)));
+  $('#results').addEventListener('click', (e) => {
+    const f = e.target.closest('[data-follow]');
+    if (!f) return;
+    const [bus, stop] = f.dataset.follow.split(':').map(Number);
+    follow(bus, stop);
+    toast(`Following Bus ${bus} at ${ROUTES[BUSES[bus].route].stops[stop].name}`);
+    go('home');
+  });
+  $('#tiers').addEventListener('click', (e) => {
+    const c = e.target.closest('[data-tier]');
+    if (!c) return;
+    S.tier = c.dataset.tier === 'null' ? null : Number(c.dataset.tier);
+    renderInbox();
+  });
+  $('#inboxList').addEventListener('click', (e) => {
+    const a = e.target.closest('[data-ack]');
+    const li = e.target.closest('[data-id]');
+    if (!li) return;
+    const item = S.inbox.find((x) => x.id === Number(li.dataset.id));
+    if (a) { item.ack = true; toast('Acknowledged — the Transport Dept can see who has read it'); }
+    item.unread = false;
+    updateBadge();
+    renderInbox();
+  });
+  $('#markRead').addEventListener('click', () => { S.inbox.forEach((x) => { x.unread = false; }); updateBadge(); renderInbox(); });
+  $('#bufferSeg').addEventListener('click', (e) => {
+    const b = e.target.closest('[data-b]');
+    if (!b) return;
+    S.buffer = Number(b.dataset.b);
+    $$('#bufferSeg button').forEach((x) => x.classList.toggle('on', x === b));
+    toast(`Safety margin: ${S.buffer} min`);
+  });
+  $$('.sw:not(.lock)').forEach((s) => s.addEventListener('click', () => s.classList.toggle('on')));
+  $('#sheetBack').addEventListener('click', closeSheet);
+  $('#shClose').addEventListener('click', closeSheet);
+
+  // ── presenter scenarios ───────────────────────────────────────────────────────────────────
+  function ensureApp() {
+    if (!S.onboarded) { S.onboarded = true; $('#roll').value = ROLL; }
+  }
+  function scenarioLeave() {
+    ensureApp();
+    if (S.dz) restoreSignal(true);
+    follow(14, DSNR);
+    const b = BUSES[14];
+    b.f = b.fixF = ROUTES.r1.stops[DSNR].f - 10.2 / 60;
+    go('home');
+  }
+  function scenarioDeadZone() {
+    ensureApp();
+    if (!S.follow) follow(14, DSNR);
+    if (S.view !== 'home') go('home');
+    if (S.dz) { restoreSignal(); return; }
+    S.dz = { until: S.sim + 200e3 };
+    $('#btnDz .lbl').textContent = 'Restore signal';
+    syncStep();
+  }
+  function restoreSignal(silent) {
+    const b = BUSES[14];
+    const replayed = Math.max(1, Math.round((S.sim - b.fixAt) / 5000));
+    S.dz = null;
+    b.recoveredAt = S.sim;
+    $('#btnDz .lbl').textContent = 'Dead zone';
+    if (!silent) toast(`Bus 14 is back · ${replayed} buffered positions replayed`);
+    syncStep();
+  }
+  function scenarioBreakdown() {
+    ensureApp();
+    S.broken = true;
+    notify({ tier: 0, title: 'Bus 27 is out of service today', body: 'Engine fault at Tarnaka. **Bus 33** is running Route 4 in its place, leaving Uppal X Roads at 07:45.',
+      ticket: 'Being handled', from: 'Transport Department · sent to 212 students' });
+    if (S.view === 'search') updateResultEtas();
+  }
+  function scenarioAnnounce() {
+    ensureApp();
+    notify({ tier: 2, title: 'Event day — Friday', body: 'All evening buses leave campus at **4:30 PM** instead of 5:15 PM.', from: 'Transport Department · sent to 1,184 students' });
+  }
+  function scenarioReset() {
+    ensureApp();
+    S.sim = START;
+    S.dz = null;
+    S.broken = false;
+    $('#btnDz .lbl').textContent = 'Dead zone';
+    resetBuses();
+    follow(14, DSNR);
+    S.inbox = seedInbox();
+    updateBadge();
+    hideBanner();
+    go('home');
+    toast('Reset to 07:24');
+  }
+  $('#btnLeave').addEventListener('click', scenarioLeave);
+  $('#btnDz').addEventListener('click', scenarioDeadZone);
+  $('#btnBreak').addEventListener('click', scenarioBreakdown);
+  $('#btnAnn').addEventListener('click', scenarioAnnounce);
+  $('#btnReset').addEventListener('click', scenarioReset);
+
+  const SPEEDS = [0, 1, 4, 10];
+  function setSpeed(s) {
+    S.speed = s;
+    $$('#speed button').forEach((b) => b.classList.toggle('on', Number(b.dataset.s) === s));
+  }
+  $('#speed').addEventListener('click', (e) => { const b = e.target.closest('[data-s]'); if (b) setSpeed(Number(b.dataset.s)); });
+
+  // ── story chapters ────────────────────────────────────────────────────────────────────────
+  const STEPS = [
+    { t: 'Claim with a roll number', talk: 'A roll number and a one-time SMS code to the phone the Transport Department already has on file. No sign-up form, no app store.',
+      run: () => { S.onboarded = false; S.follow = null; $('#roll').value = ''; resetOtp(); go('welcome'); } },
+    { t: 'Find your stop, however you spell it', talk: '“dilsuknagar”, “kothi”, “lb ngr” — misspellings and short forms still find the stop, with every bus that serves it and a live arrival range.',
+      run: () => { ensureApp(); go('search'); typeInto($('#q'), 'dilsuknagar'); } },
+    { t: 'Follow a bus, know when to leave', talk: 'One answer above the map: which bus, how far, as an honest range with a confidence dot. “Leave in” subtracts your walk and a safety margin. Leave-now alerts switch on once arrival times are measured on real buses.',
+      run: () => { ensureApp(); if (!S.follow) follow(14, DSNR); if (S.dz) restoreSignal(true); go('home'); } },
+    { t: 'Honest when the signal drops', talk: 'Amber when updates run late, red when they stop — never a confident wrong number. The bus keeps its positions and replays them when it reconnects.',
+      run: () => { ensureApp(); if (!S.dz) scenarioDeadZone(); else go('home'); } },
+    { t: 'Alerts that respect your attention', talk: 'Four tiers, one alert per trip, no duplicates. “I\'m on the bus” silences everything except critical alerts, which fall back to SMS.',
+      run: () => { ensureApp(); go('inbox'); } },
+  ];
+  $('#steps').innerHTML = STEPS.map((s, i) => `<li class="stn" data-step="${i}"><button><span class="dot">${i + 1}</span><span class="t">${s.t}</span></button><div class="talk"><p>${s.talk}</p></div></li>`).join('');
+  $('#steps').addEventListener('click', (e) => { const li = e.target.closest('[data-step]'); if (li) STEPS[Number(li.dataset.step)].run(); });
+  function syncStep() {
+    const i = { welcome: 0, claim: 0, otp: 0, ready: 0, search: 1, home: S.dz ? 3 : 2, inbox: 4, settings: 4 }[S.view];
+    S.step = i;
+    $$('.stn').forEach((li, j) => { li.classList.toggle('on', j === i); li.classList.toggle('done', j < i); });
+    const items = $$('.stn');
+    const m = $('#steps');
+    const target = items[i];
+    const pct = items.length > 1 ? ((target.offsetTop + 13 - 14) / (m.clientHeight - 28)) * 100 : 0;
+    m.style.setProperty('--progress', clamp(pct, 0, 100) + '%');
+  }
+
+  // ── LED departure board ───────────────────────────────────────────────────────────────────
+  function ledText() {
+    const parts = [];
+    if (S.follow) {
+      const b = BUSES[S.follow.bus];
+      const st = ROUTES[b.route].stops[S.follow.stop];
+      const e = eta(b, st.f);
+      if (b.state === 'DARK') parts.push(`BUS ${b.n} SIGNAL LOST — NO ARRIVAL TIME UNTIL IT REPORTS`);
+      else if (e && !e.passed) parts.push(`BUS ${b.n} → CBIT GANDIPET`, `${st.name.toUpperCase()} ${etaLabel(e).toUpperCase()}`);
+      else parts.push(`BUS ${b.n} HAS PASSED ${st.name.toUpperCase()}`);
+    } else parts.push('CBIT TRANSPORT', 'FIND YOUR STOP TO SEE WHEN TO LEAVE');
+    parts.push(`${Object.keys(BUSES).length} BUSES RUNNING`, clock(S.sim));
+    return parts.join('   ◆   ') + '   ◆';
+  }
+  const led = $('#ledText');
+  function setLed() { $('#ledText').textContent = ledText(); }
+  led.addEventListener('animationiteration', setLed);
+
+  // ── keyboard & layout ─────────────────────────────────────────────────────────────────────
+  document.addEventListener('keydown', (e) => {
+    if (e.metaKey || e.ctrlKey || e.altKey || /INPUT|TEXTAREA/.test(e.target.tagName)) return;
+    const k = e.key.toLowerCase();
+    if (k >= '1' && k <= '5') STEPS[Number(k) - 1].run();
+    else if (k === 'l') scenarioLeave();
+    else if (k === 'd') scenarioDeadZone();
+    else if (k === 'b') scenarioBreakdown();
+    else if (k === 'a') scenarioAnnounce();
+    else if (k === 'r') scenarioReset();
+    else if (k === 's') setSpeed(SPEEDS[(SPEEDS.indexOf(S.speed) + 1) % SPEEDS.length]);
+    else if (k === 't') document.documentElement.dataset.theme = document.documentElement.dataset.theme === 'dark' ? 'light' : 'dark';
+    else if (k === 'h') document.body.classList.toggle('clean');
+    else if (k === 'escape') { closeSheet(); hideBanner(); }
+    else return;
+    e.preventDefault();
+  });
+  function fit() {
+    const wide = innerWidth > 1180;
+    const z = Math.min(1, (innerHeight - 40) / 860, wide ? 1 : (innerWidth - 24) / 402);
+    document.documentElement.style.setProperty('--z', Math.max(0.5, z).toFixed(3));
+  }
+  addEventListener('resize', fit);
+
+  // ── boot ──────────────────────────────────────────────────────────────────────────────────
+  fit();
+  buildMap();
+  resetBuses();
+  S.inbox = seedInbox();
+  updateBadge();
+  setLed();
+  led.style.animationDelay = '-11s'; // start with text already on the board
+  go('welcome');
+  requestAnimationFrame((t) => { lastT = t; requestAnimationFrame(tick); });
+})();
+</script>
+</body>
+</html>

@@ -85,6 +85,13 @@ export function HeroCard() {
         Bus {sub.busNumber} has passed {sub.stop.name}.
       </span>
     );
+  // "I'm on the bus": the stop is behind the student, so there is no arrival time to work out
+  else if (sub.state === "boarded")
+    status = (
+      <span className="text-muted">
+        You&apos;re on Bus {sub.busNumber}. No leave-now alert for this trip.
+      </span>
+    );
   else if (!onTrip)
     status = <span className="text-muted">Bus {sub.busNumber} is not reporting yet.</span>;
   else if (bus.state === "DARK")

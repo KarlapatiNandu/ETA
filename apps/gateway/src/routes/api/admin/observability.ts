@@ -103,7 +103,11 @@ export async function adminObservabilityRoutes(
         summary:
           pushRate === null
             ? "no push sent in the last hour"
-            : `${Math.round(pushRate * 100)}% of pushes refused in the last hour (limit ${ALERTS.PUSH_FAILURE_RATE * 100}%)`,
+            : `${Math.round(pushRate * 100)}% of pushes refused in the last hour (limit ${ALERTS.PUSH_FAILURE_RATE * 100}%)` +
+              // below 20 a single dead subscription reads as a huge rate: say why it is not firing
+              (pushOk + pushRefused < 20
+                ? ` — only ${pushOk + pushRefused} sent, judged from 20`
+                : ""),
       },
       {
         id: "dark_bus",

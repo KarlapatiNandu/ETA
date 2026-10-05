@@ -43,7 +43,7 @@ export function OtpFlow({ purpose }: { purpose: "claim" | "recover" }) {
 
   if (!sent) {
     return (
-      <Card title={purpose === "claim" ? "Claim your account" : "Reset your password"}>
+      <Card key="start" title={purpose === "claim" ? "Claim your account" : "Reset your password"}>
         <p className="mb-4 text-sm text-muted">
           We will text a 6-digit code to the phone number the Transport Department has on file for
           you.
@@ -75,7 +75,7 @@ export function OtpFlow({ purpose }: { purpose: "claim" | "recover" }) {
   }
 
   return (
-    <Card title="Enter the code">
+    <Card key="verify" title="Enter the code">
       <p className="mb-4 text-sm text-muted">
         If {rollNo.toUpperCase()} is eligible, a code was sent to{" "}
         <span className="text-ink">{sent.masked_phone}</span>. It expires in{" "}
