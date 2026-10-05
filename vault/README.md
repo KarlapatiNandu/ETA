@@ -1,6 +1,6 @@
 # Vault
 
-The engineering log for Bus Mitra. Everything here exists to answer a question some future person will ask under pressure at 7:40 a.m.
+The engineering log for ETA. Everything here exists to answer a question some future person will ask under pressure at 7:40 a.m.
 
 `docs/` says how the system **is meant to work**. The vault says **what we actually did, what broke, and what we learned** — which is usually the more valuable of the two.
 

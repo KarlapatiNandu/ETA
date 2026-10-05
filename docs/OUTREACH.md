@@ -16,11 +16,11 @@ DLT (TRAI's Distributed Ledger for commercial SMS) approves the **entity**, the 
 
 | Use | Tier | Category | Template text |
 |---|---|---|---|
-| Account claim / password reset OTP | — (Stage 4) | Service Implicit | `{#var#} is your Bus Mitra verification code. It expires in 10 minutes. Do not share it with anyone. -CBIT Transport` |
-| Leave now | T1 | Service Implicit | `Bus Mitra: Leave now. Bus {#var#} reaches {#var#} in about {#var#} min. -CBIT Transport` |
-| Main bus started | T1 | Service Implicit | `Bus Mitra: Your Bus {#var#} has started its {#var#} trip. -CBIT Transport` |
-| Bus out of commission | T0 | Service Implicit | `Bus Mitra ALERT: Bus {#var#} is out of service {#var#}. {#var#} -CBIT Transport` |
-| Bus back in service | T0 follow-up | Service Implicit | `Bus Mitra: Bus {#var#} is back in service. {#var#} -CBIT Transport` |
+| Account claim / password reset OTP | — (Stage 4) | Service Implicit | `{#var#} is your ETA verification code. It expires in 10 minutes. Do not share it with anyone. -CBIT Transport` |
+| Leave now | T1 | Service Implicit | `ETA: Leave now. Bus {#var#} reaches {#var#} in about {#var#} min. -CBIT Transport` |
+| Main bus started | T1 | Service Implicit | `ETA: Your Bus {#var#} has started its {#var#} trip. -CBIT Transport` |
+| Bus out of commission | T0 | Service Implicit | `ETA ALERT: Bus {#var#} is out of service {#var#}. {#var#} -CBIT Transport` |
+| Bus back in service | T0 follow-up | Service Implicit | `ETA: Bus {#var#} is back in service. {#var#} -CBIT Transport` |
 
 The copy is not final, but a template can be *added* later far more cheaply than the entity and header can be registered — the clock that matters is the first approval.
 
@@ -28,11 +28,11 @@ The copy is not final, but a template can be *added* later far more cheaply than
 
 ## 2. To the Transport Department — roster, ridership, cohort
 
-> **Subject:** Bus Mitra — three things we need from the Transport Department
+> **Subject:** ETA — three things we need from the Transport Department
 >
 > Dear Sir/Madam,
 >
-> We have started building Bus Mitra, the live bus-tracking app for the college fleet. Three pieces of information from your office decide how we build it, and one of them blocks us within the next two weeks:
+> We have started building ETA, the live bus-tracking app for the college fleet. Three pieces of information from your office decide how we build it, and one of them blocks us within the next two weeks:
 >
 > 1. **Student bus roster (needed first).** A spreadsheet of students who use the college buses with these columns: *roll number, full name, admission year, mobile number, branch.* Students sign in with their roll number and confirm their identity with a one-time code sent to the mobile number on this list, so the list decides who can use the app. Rows with a missing mobile number are fine — we will show them to your office to fill in later.
 > 2. **Daily ridership.** Roughly how many students ride the buses on a normal day, morning and evening. This sets how large a system we need; an estimate is enough.
@@ -43,7 +43,7 @@ The copy is not final, but a template can be *added* later far more cheaply than
 > The roster will be handled only inside the app's database, never shared, and used only for sign-in and bus alerts.
 >
 > Thank you,
-> Bus Mitra team, Department of IT
+> ETA team, Department of IT
 
 ---
 

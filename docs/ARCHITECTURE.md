@@ -1,4 +1,4 @@
-# Bus Mitra — Architecture
+# ETA — Architecture
 
 > Reference document for the technical design. Read this before writing code in any module.
 > Companion documents: [SCHEMA.md](SCHEMA.md) (data model), [BUILD_PLAN.md](BUILD_PLAN.md) (staged delivery).
@@ -39,7 +39,7 @@ Every architectural decision below is made to prevent one of those four, not to 
 
 The naive architecture writes every GPS ping to the database and has clients read from the database. That couples ingestion to delivery, puts disk I/O and replication lag on the hot path, and means a read spike at 4 p.m. (when every student opens the app) degrades GPS collection.
 
-Bus Mitra inverts this:
+ETA inverts this:
 
 > **The database is never on the read path for live data.**
 > Postgres is the system of record and the analytics store. Redis is the live fleet. Clients read Redis-derived state pushed over SSE. Persistence to Postgres happens on a separate, batched, lagging consumer that no student ever waits on.
@@ -660,7 +660,7 @@ minutes" — is `packages/telemetry` plus five alert rules (ADR-0009).
 - **Alerts** (`ALERTS` in `packages/config`, mirrored in `infra/grafana/provisioning/alerting`):
   fix → frame p95 > 8 s for 5 min · consumer lag > 1,000 · push refusals > 10 % over an hour ·
   any bus silent 15+ min on an open trip · any dead letter.
-- **Two places to look:** Grafana (*Bus Mitra — overview*, for campus IT) and the console's
+- **Two places to look:** Grafana (*ETA — overview*, for campus IT) and the console's
   **Health** page (`/admin/health`, for the Transport Department) — the same rules, computed on
   request from Redis and the views, plus the learned dead zones on a map.
 - **Errors:** Sentry on the web app and the driver app (loaded only when a DSN is set: without

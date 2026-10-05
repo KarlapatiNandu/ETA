@@ -1,6 +1,6 @@
 <div align="center">
 
-# Bus Mitra
+# ETA
 
 **Live bus tracking for the CBIT campus fleet.**
 Real-time map, per-stop ETAs, and arrival alerts that tell you when to leave — not when you've already missed it.
@@ -293,7 +293,7 @@ Rollout follows the project deck: **3 buses → measure ETA accuracy for two wee
 | [`docs/BUILD_PLAN.md`](docs/BUILD_PLAN.md) | The ten stages with exit criteria and a risk register |
 | [`vault/`](vault/) | Engineering log: per-module notes, ADRs, runbooks, benchmarks |
 | [`docs/handover/`](docs/handover/) | Driver sheet (EN/TE/HI), TD handbook, student guide, campus-IT handover |
-| [`Bus_Mitra.md`](Bus_Mitra.md) | Original project deck — problem framing, alternatives, cost model |
+| [`ETA.md`](ETA.md) | Original project deck — problem framing, alternatives, cost model |
 
 ## Contributing
 

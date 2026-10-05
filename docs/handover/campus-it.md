@@ -1,6 +1,6 @@
-# Bus Mitra — campus IT handover
+# ETA — campus IT handover
 
-For whoever keeps Bus Mitra running after the build team: CBIT campus IT, or the next student
+For whoever keeps ETA running after the build team: CBIT campus IT, or the next student
 team. Assumes you can use a terminal, Git and Docker. The design documents are
 [ARCHITECTURE.md](../ARCHITECTURE.md), [SCHEMA.md](../SCHEMA.md) and
 [BUILD_PLAN.md](../BUILD_PLAN.md); the operating procedures are the runbooks in
@@ -51,7 +51,7 @@ live only in Fly secrets, Vercel env, GitHub Actions secrets and the geo box's `
 | Backups | Supabase Pro daily backups (7 days) **plus** our own nightly logical dump to off-site storage (`.github/workflows/backup.yml`); restore drill: `infra/scripts/restore-drill.sh` — run it every term |
 | New academic year | TD uploads the roster in the console; the cohort promotion job runs itself on 1 August |
 | Pair a wired tracker | `pnpm tracker provision --bus 14 --kind hardware --device <IMEI>` → paste the printed entry into `ADAPTER_DEVICES_JSON`; configure the box by SMS (typically `SERVER,1,<adapter host>,5023,0#` and `TIMER,10,60#` — the syntax varies by vendor: check the device manual) |
-| Watch health | the console's **Health** page; Grafana *Bus Mitra — overview*; the five alert rules page on-call |
+| Watch health | the console's **Health** page; Grafana *ETA — overview*; the five alert rules page on-call |
 
 ## 4. When something breaks
 

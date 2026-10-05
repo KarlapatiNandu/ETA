@@ -40,7 +40,7 @@
 
 - [ ] `curl https://api.busmitra.in/healthz` → `{"ok":true}`; security headers present.
 - [ ] `/admin/health`: all green within 2 minutes; consumer lag back to 0.
-- [ ] Grafana *Bus Mitra — overview*: fix → frame p95 unchanged.
+- [ ] Grafana *ETA — overview*: fix → frame p95 unchanged.
 - [ ] Anything wrong → [rollback.md](rollback.md). Do not debug on production at 7:40.
 
 ## 4. The first production deploy (Stage 9)

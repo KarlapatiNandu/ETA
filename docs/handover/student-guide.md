@@ -1,4 +1,4 @@
-# Bus Mitra — student guide
+# ETA — student guide
 
 For students, shared at launch (a poster QR code, the department WhatsApp group). Short on
 purpose.

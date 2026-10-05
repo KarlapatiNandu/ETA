@@ -1,4 +1,4 @@
-## **Bus Mitra** 
+## **ETA** 
 
 Live bus tracking for the CBIT campus fleet. Live map, per-stop ETAs, arrival alerts. 
 
@@ -27,7 +27,7 @@ Printed timetables don't survive traffic, breakdowns or route changes.
 
 Coordination runs on WhatsApp and phone calls. Nothing is recorded. 
 
-Bus Mitra 
+ETA 
 
 2 
 
@@ -44,7 +44,7 @@ Bus tracking is solved for regulators and for city transit. Not for a single cam
 
 
 
-Bus Mitra 
+ETA 
 
 3 
 
@@ -77,7 +77,7 @@ Qu 4min ><br>& 22 9min- > a Busin 5 14minutes. arriving<br>&@ 27 14min ><br>fe) 
 
 Fleet status, which buses are active today, and holiday or route overrides that the student app picks up immediately. 
 
-Bus Mitra 
+ETA 
 
 4 
 
@@ -92,7 +92,7 @@ t<br>L<br>L<br><!-- End of picture text -->
 
 _Decoupling ingestion from delivery: GPS collection keeps running at full rate even when every student opens the app at 4 p.m._ 
 
-Bus Mitra 
+ETA 
 
 5 
 
@@ -107,7 +107,7 @@ Target budget for a GPS ping to reach the student's screen.
 
 **15 s   Ping interval ~8 s   Pipeline latency ~23 s   Worst-case staleness** How often the tracker reports a new position. Uplink, ingestion, ETA recompute and push. Ping interval plus pipeline. 
 
-Bus Mitra 
+ETA 
 
 6 
 
@@ -138,7 +138,7 @@ Distance plus recent average speed for that segment gives the per-stop ETA.
 <!-- Start of picture text -->
 ° —<br>Stop 5<br>raw GPS pings<br>km<br>ee Stop“9<br>'e to Stop 5<br>e Stople;anto Stopom 4<br>Stop 2 to Stop 3<br>e<br>/ °<br>distance along route, not straight-line<br><!-- End of picture text -->
 
-Bus Mitra 
+ETA 
 
 7 
 
@@ -158,7 +158,7 @@ Every failure mode has a defined behaviour. The app never fabricates a live posi
 
 _Showing a stale timestamp instead of a confident wrong position is a product decision._ 
 
-Bus Mitra 
+ETA 
 
 8 
 
@@ -188,7 +188,7 @@ per bus, per year
 
 per student, per year 
 
-Bus Mitra 
+ETA 
 
 9 
 
@@ -220,7 +220,7 @@ C A M P U S - W I D E<br>All   routes<br><!-- End of picture text -->
 
 _No fleet-wide spend until the pilot proves ETA accuracy on real routes._ 
 
-Bus Mitra 
+ETA 
 
 10 
 

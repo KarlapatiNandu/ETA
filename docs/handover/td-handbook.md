@@ -1,4 +1,4 @@
-# Bus Mitra — Transport Department handbook
+# ETA — Transport Department handbook
 
 For the Transport Department staff who run the console at **/admin**. No technical knowledge
 needed. Everything here is a button in the console; nothing needs a terminal.

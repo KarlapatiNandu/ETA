@@ -1,4 +1,4 @@
-# Bus Mitra — Build Plan
+# ETA — Build Plan
 
 > Ten stages. Each one is independently demonstrable, leaves the repository in a working state, and ends with a written vault entry and a README update.
 >

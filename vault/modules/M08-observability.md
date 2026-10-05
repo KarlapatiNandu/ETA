@@ -215,7 +215,7 @@ Full reasoning in [ADR-0009](../decisions/ADR-0009-observability-and-load.md). I
 pnpm test                                          # 568 tests (Redis + PGlite)
 TEST_DATABASE_URL=postgresql://postgres:postgres@127.0.0.1:54322/postgres \
   pnpm vitest run packages/db apps/engine apps/gateway   # 292 on Postgres 15
-bash infra/scripts/observability.sh                # Grafana :3001 → Bus Mitra — overview
+bash infra/scripts/observability.sh                # Grafana :3001 → ETA — overview
 # stop `pnpm dev` (the harness runs its own gateway + engine), then:
 docker build -t busmitra-k6 tests/load
 pnpm sim load --clients 600 --minutes 10 --otlp http://localhost:4318

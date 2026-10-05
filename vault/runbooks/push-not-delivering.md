@@ -130,6 +130,6 @@ A subscription is bound to the key it was created with; nothing on the server ca
 - **The old key leaked and must stay revoked** → keep the new pair. Each student's app notices
   the key change on its next visit and re-subscribes without asking (`lib/push.ts` → `sameKey`);
   until then T0/T1 go by SMS and everything is in the center. Consider a T2 announcement: "open
-  Bus Mitra once to keep getting alerts".
+  ETA once to keep getting alerts".
 
 Rehearse: `pnpm sim chaos vapid` (stop `pnpm dev` first).

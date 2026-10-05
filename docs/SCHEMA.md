@@ -1,4 +1,4 @@
-# Bus Mitra — Data Model
+# ETA — Data Model
 
 > The authoritative reference for the database. Migrations in `packages/db/migrations` must match this document; if they diverge, this document is updated in the same pull request.
 >

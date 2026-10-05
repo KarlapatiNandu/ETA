@@ -1,4 +1,4 @@
-# Bus Mitra — Stage Tracker
+# ETA — Stage Tracker
 
 > **Review this before building each stage, and update it the moment anything changes.**
 > Working rules live in [Read_this_first.md](Read_this_first.md). Stage detail lives in [docs/BUILD_PLAN.md](docs/BUILD_PLAN.md).

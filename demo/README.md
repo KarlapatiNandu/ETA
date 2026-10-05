@@ -1,12 +1,12 @@
-# Bus Mitra — offline demo
+# ETA — offline demo
 
-A single self-contained page that walks through what Bus Mitra does for the three people who use it — a student, a bus driver and the Transport Department — without the backend, the phone link or a network connection. Every bus, verification code and alert is simulated in the browser.
+A single self-contained page that walks through what ETA does for the three people who use it — a student, a bus driver and the Transport Department — without the backend, the phone link or a network connection. Every bus, verification code and alert is simulated in the browser.
 
 **To run it,** double-click `index.html`. It opens in any current Chrome, Edge, Safari or Firefox and needs no install, no server and no Wi-Fi. Use a laptop screen or projector of 1280 × 800 or larger; on smaller screens the panels stack below the device.
 
 ## Layout
 
-- **Top — whose screen.** *Student*, *Driver* or *Transport office*. All three look at the same simulated morning: lose Bus 14's signal and the student's phone, the driver's phone and the office console all show it.
+- **Right edge — a slim icon rail.** The top three icons choose whose screen you see: *Student*, *Driver* or *Transport office*. Below them are full screen and light/dark. Hover an icon for its name. All three look at the same simulated morning: lose Bus 14's signal and the student's phone, the driver's phone and the office console all show it.
 - **Left — the talk track.** The chapters for the current view, drawn as a route line. Click one, or press its number, and the screen jumps to that part of the story; the talking point appears underneath.
 - **Centre — the device.** A phone for the student and the driver, a browser window for the office. Everything on it can be clicked.
 - **Right — presenter controls** (below the talk track in the office view). Trigger moments on cue instead of waiting for them. A yellow note appears here when an alert was deliberately *not* delivered to the student's phone.
@@ -23,8 +23,9 @@ A single self-contained page that walks through what Bus Mitra does for the thre
 | `A` | **Announcement** — an event-day timing change from the Transport Department |
 | `R` | **Reset** — back to 07:24, Bus 14 thirteen minutes out, Bus 14 starred and Bus 27 in Favourites |
 | `S` | Cycle simulated time: paused, 1×, 4× (default), 10× |
+| `F` | **Full screen** — presenter mode: the address bar, tabs and the rest of the browser disappear, leaving the talk track, the device and the controls. The rail dims until you point at it. `F` or `Esc` leaves it |
 | `T` | Light / dark theme (the page opens in light, which reads best on a projector) |
-| `H` | Hide everything except the device |
+| `H` | Hide everything except the device (combine with `F` for the phone alone on a blank screen) |
 | `Esc` | Close a notification or the bus sheet |
 
 ## The student: a six-minute run-through
