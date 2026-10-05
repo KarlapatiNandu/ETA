@@ -4,11 +4,16 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>ETA-Version1</title>
+  <title>ETA-Version2</title>
   <link rel="icon"
-    href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='8' fill='%231f6b4f'/%3E%3Cpath d='M7 21 L13 12 L19 18 L25 9' stroke='%23ffffff' stroke-width='3' fill='none' stroke-linecap='round' stroke-linejoin='round'/%3E%3Ccircle cx='19' cy='18' r='3' fill='%23f0b429'/%3E%3C/svg%3E">
+    href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16' shape-rendering='crispEdges'%3E%3Crect width='16' height='16' fill='%231f6b4f'/%3E%3Cpath d='M2 4h1v1h10v-1h1v7h-1v1h-10v-1h-1z' fill='%23f0b429'/%3E%3Cpath d='M4 12h2v2h-2zM10 12h2v2h-2z' fill='%23ffffff'/%3E%3C/svg%3E">
   <!--
-  ETA — standalone stakeholder demo.
+  ETA — standalone stakeholder demo · BLOCK EDITION.
+  This file is demo/index.html redrawn in a block-game language: stepped corners, a bitmap face for
+  numerals, pixel icons, and buses as minecarts on rails. Wording, numbers, states and keys are the
+  same. The restyle lives in one layer at the end of the stylesheet ("BLOCK EDITION") and one block
+  of helpers at the top of the script; all art is generated in this page, none of it is borrowed.
+  Deep links: #role=driver&step=2&theme=dark&do=D&ff=120&view=settings&sheet=14&speed=0&map=classic&mode=cycle
   One file, no network: no backend, no CDN, no web fonts. Every bus, code and alert is simulated
   in this page. Open it by double-clicking. Presenter keys are listed in demo/README.md.
 -->
@@ -3408,6 +3413,1314 @@
         transition-duration: .001ms !important;
       }
     }
+
+    /* ══ BLOCK EDITION ═════════════════════════════════════════════════════════════════════════════
+       Everything above is demo/index.html unchanged. This layer redraws it: layout, palette, serif
+       headings and every sentence stay; corners step on a 2px grid, numerals and micro-labels use a
+       bitmap face, icons are pixel-drawn in one ink, and buses are minecarts on rails.
+       Rule: pixels go on what you tap and glance at, never on what you read. */
+    :root {
+      --p: 2px;
+      --bw: 2px;
+      --line: #d2c8b3;
+      --edge: #1c150d;
+      --iron: #5f574c;
+      --sleeper: #a98c5e;
+    }
+
+    :root[data-theme="dark"] {
+      --line: #454036;
+      --edge: #000;
+      --iron: #8d8577;
+      --sleeper: #5c4c33;
+    }
+
+    /* no curves on the glass; the hardware around it keeps its own */
+    *,
+    *::before,
+    *::after {
+      border-radius: 0 !important;
+    }
+
+    .phone {
+      border-radius: 64px !important;
+    }
+
+    .screen {
+      border-radius: 52px !important;
+    }
+
+    .island {
+      border-radius: 20px !important;
+    }
+
+    .homebar,
+    .phone::before,
+    .phone::after {
+      border-radius: 3px !important;
+    }
+
+    .win {
+      border-radius: 14px !important;
+    }
+
+    .win-bar i {
+      border-radius: 50% !important;
+    }
+
+    .win-bar .url {
+      border-radius: 8px !important;
+    }
+
+    /* ── the frame ─────────────────────────────────────────────────────────────────────────────────
+       A stepped corner without extra elements: the box is clipped to a two-step corner, its border is
+       the line, and four 1-pixel background dots restore the diagonal pixel the clip cuts through.
+       Only background-image is used for the dots, so each surface keeps its own background colour.
+       States recolour the line through --bd. */
+    :is(.hero, .card, .map-card, .leave, .btn, .panel, .search, .field input, .otp .cell, .chip, .stop-card, .stub,
+      .fav, .fav-empty, .heart, .d-chip, .d-routes button, .d-nums div, .d-big, .a-tile, .a-form, .a-form input,
+      .a-form textarea, .a-form select, .scen button, .push, .sheet .note, .h-status .note, .minimap, .quiet, kbd,
+      .stn .dot, .flap .f),
+    :is(.conn, .startag, .led, .brand-mark, .seg, .seg button, .ticket, .toast, .push-acts button, .appicon,
+      .sc-head .pin, .fav-star, .scen .ic, .tl .here, .a-nav button, .a-count, .pnote, .assure, .autofill, .tab .ic,
+      .rail button::after) {
+      --a: var(--p);
+      --b: calc(2 * var(--p));
+      --y: calc(100% - var(--p));
+      --z: calc(100% - 2 * var(--p));
+      clip-path: polygon(0 var(--b), var(--a) var(--b), var(--a) var(--a), var(--b) var(--a), var(--b) 0,
+          var(--z) 0, var(--z) var(--a), var(--y) var(--a), var(--y) var(--b), 100% var(--b),
+          100% var(--z), var(--y) var(--z), var(--y) var(--y), var(--z) var(--y), var(--z) 100%,
+          var(--b) 100%, var(--b) var(--y), var(--a) var(--y), var(--a) var(--z), 0 var(--z));
+    }
+
+    :is(.hero, .card, .map-card, .leave, .btn, .panel, .search, .field input, .otp .cell, .chip, .stop-card, .stub,
+      .fav, .fav-empty, .heart, .d-chip, .d-routes button, .d-nums div, .d-big, .a-tile, .a-form, .a-form input,
+      .a-form textarea, .a-form select, .scen button, .push, .sheet .note, .h-status .note, .minimap, .quiet, kbd,
+      .stn .dot, .flap .f) {
+      border: var(--bw) solid var(--bd, var(--line)) !important;
+      background-image: linear-gradient(var(--bd, var(--line)), var(--bd, var(--line))),
+        linear-gradient(var(--bd, var(--line)), var(--bd, var(--line))),
+        linear-gradient(var(--bd, var(--line)), var(--bd, var(--line))),
+        linear-gradient(var(--bd, var(--line)), var(--bd, var(--line))) !important;
+      background-size: var(--p) var(--p) !important;
+      background-repeat: no-repeat !important;
+      background-origin: border-box !important;
+      background-position: var(--p) var(--p), calc(100% - var(--p)) var(--p), var(--p) calc(100% - var(--p)),
+        calc(100% - var(--p)) calc(100% - var(--p)) !important;
+    }
+
+    .hero[data-tone="warn"] {
+      --bd: color-mix(in srgb, var(--degraded) 55%, var(--line));
+    }
+
+    .hero[data-tone="dark"],
+    .stub.t0 {
+      --bd: color-mix(in srgb, var(--dark) 55%, var(--line));
+    }
+
+    .btn.primary,
+    .btn.xs.on,
+    .chip.on,
+    .search:focus-within,
+    .field input:focus,
+    .otp .cell.filled,
+    .d-routes button.on,
+    .d-big,
+    .leave.go,
+    .a-form input:focus,
+    .a-form textarea:focus,
+    .a-form select:focus,
+    .stn.done .dot,
+    .stn.on .dot {
+      --bd: var(--live);
+    }
+
+    .fav.star {
+      --bd: var(--star);
+    }
+
+    .heart.on {
+      --bd: var(--ink);
+    }
+
+    .d-chip.bad,
+    .d-big.end,
+    .push.crit,
+    .sheet .note.dark {
+      --bd: var(--dark);
+    }
+
+    .d-nums div.hold,
+    .sheet .note.warn {
+      --bd: var(--degraded);
+    }
+
+    .h-status .note {
+      --bd: color-mix(in srgb, var(--dark) 45%, var(--line));
+    }
+
+    .scen button {
+      --bd: transparent;
+    }
+
+    .scen button:hover {
+      --bd: var(--line);
+    }
+
+    .fav-empty {
+      border-style: dashed !important;
+    }
+
+    /* a clipped box cannot show an outline, so focus recolours the line and rings the inside */
+    :is(.btn, .chip, .heart, .scen button, .d-routes button, .d-big, .fav-star, .push-acts button, .seg button,
+      .a-nav button):focus-visible {
+      outline: none;
+      --bd: var(--focus);
+      box-shadow: inset 0 0 0 2px var(--focus);
+    }
+
+    /* ── pixel type: the real text stays in the DOM (.t) for readers and copy; the pixels sit over it ── */
+    .px {
+      display: inline-flex;
+      flex-wrap: wrap;
+      gap: calc(var(--fs, 2px) * 2) calc(var(--fs, 2px) * 4);
+      vertical-align: middle;
+    }
+
+    .px svg {
+      display: block;
+      flex: none;
+      width: calc(var(--fs, 2px) * var(--w));
+      height: calc(var(--fs, 2px) * 7);
+      fill: currentColor;
+    }
+
+    .px .t {
+      position: absolute;
+      width: 1px;
+      height: 1px;
+      overflow: hidden;
+      clip-path: inset(50%);
+      white-space: nowrap;
+    }
+
+    /* ── sprites: one ink. The outline is solid and the fill a tint, so an icon takes whatever colour
+       its state gives it; `.solid` (or an "on" parent) fills it in ──────────────────────────────── */
+    .spr {
+      display: block;
+      flex: none;
+      width: calc(var(--s, 2px) * var(--w)) !important;
+      height: calc(var(--s, 2px) * var(--h)) !important;
+    }
+
+    .spr rect {
+      stroke: none;
+      fill: currentColor;
+      opacity: .2;
+    }
+
+    .spr .c-o,
+    .spr .c-k,
+    .spr .c-r,
+    .spr.solid rect,
+    .hearts .spr rect,
+    .heart.on .spr rect,
+    .fav.star .fav-star .spr rect {
+      opacity: 1;
+    }
+
+    .spr .c-w {
+      opacity: 0;
+    }
+
+    .hearts .spr .c-e {
+      opacity: .2;
+    }
+
+    /* ── moments move in steps ──────────────────────────────────────────────────────────────────── */
+    @keyframes lamp {
+      50% {
+        opacity: .3;
+      }
+    }
+
+    @keyframes drop {
+      from {
+        transform: translateY(-8px);
+      }
+    }
+
+    .pulse {
+      animation: lamp 1.4s steps(1) infinite;
+    }
+
+    .spin {
+      width: 8px;
+      height: 8px;
+      border: 0;
+      background: currentColor;
+      animation: lamp .5s steps(1) infinite;
+    }
+
+    .badge.bump {
+      animation: drop .22s steps(2);
+    }
+
+    /* ── stage ──────────────────────────────────────────────────────────────────────────────────── */
+    .brand-mark .spr {
+      --s: 2px;
+    }
+
+    .stat b span.px {
+      --fs: 3px;
+      display: inline-flex;
+      margin: 0 2px 0 0;
+      color: inherit;
+      vertical-align: -1px;
+    }
+
+    /* the talk track is a rail: two rails and sleepers, lit green as far as the current chapter */
+    .metro::before,
+    .metro::after {
+      left: 9px;
+      width: 8px;
+      background:
+        linear-gradient(90deg, var(--rc) 0 2px, transparent 2px 6px, var(--rc) 6px 8px),
+        repeating-linear-gradient(0deg, var(--sc) 0 2px, transparent 2px 8px);
+    }
+
+    .metro::before {
+      --rc: var(--line);
+      --sc: var(--line);
+    }
+
+    .metro::after {
+      --rc: var(--live);
+      --sc: color-mix(in srgb, var(--live) 45%, transparent);
+      transition: height .5s steps(8);
+    }
+
+    .stn .dot {
+      background-color: var(--canvas);
+      --fs: 2px;
+      transition: none;
+    }
+
+    /* the current chapter's number rides in a cart */
+    .stn.on .dot {
+      height: 22px;
+      margin-bottom: 4px;
+    }
+
+    .stn.on .dot::after {
+      content: "";
+      position: absolute;
+      left: 2px;
+      bottom: -6px;
+      width: 4px;
+      height: 4px;
+      background: var(--ink);
+      box-shadow: 12px 0 0 var(--ink);
+    }
+
+    .scen .ic .spr {
+      --s: 2px;
+    }
+
+    .seg button.on {
+      box-shadow: none;
+    }
+
+    .rail button .spr {
+      --s: 2px;
+    }
+
+    .rail button.on .spr rect {
+      opacity: 1;
+    }
+
+    .rail button.on .spr .c-w,
+    .rail button.on .spr .c-c,
+    .rail button.on .spr .c-p {
+      opacity: .25;
+    }
+
+    /* ── buttons: a lower lip to press against — a bevel reduced to one edge ─────────────────────── */
+    .btn,
+    .d-big {
+      box-shadow: inset 0 -2px 0 color-mix(in srgb, var(--ink) 12%, transparent);
+      transition: none;
+    }
+
+    .btn.primary,
+    .btn.xs.on,
+    .d-big {
+      box-shadow: inset 0 -3px 0 rgb(0 0 0 / .22);
+    }
+
+    .btn:active,
+    .d-big:active {
+      transform: translateY(1px);
+      box-shadow: none;
+    }
+
+    .btn.sm,
+    .btn.xs {
+      padding-bottom: 9px;
+    }
+
+    .btn.xs {
+      padding-bottom: 6px;
+    }
+
+    /* ── phone chrome ───────────────────────────────────────────────────────────────────────────── */
+    .conn {
+      padding: 6px 10px 6px;
+    }
+
+    .tab {
+      gap: 1px;
+    }
+
+    .tab .ic {
+      display: grid;
+      place-items: center;
+      width: 46px;
+      height: 31px;
+    }
+
+    .tab .ic .spr {
+      --s: 3px;
+    }
+
+    /* the selected tab is a hotbar slot, quietly: a stepped tile behind a one-ink icon */
+    .tab.on .ic {
+      background: color-mix(in srgb, var(--live) 14%, transparent);
+    }
+
+    .tab.on .ic .spr {
+      animation: drop .22s steps(2);
+    }
+
+    .badge {
+      top: -5px;
+      left: calc(50% + 8px);
+      height: auto;
+      min-width: 0;
+      padding: 3px 4px;
+      line-height: 0;
+    }
+
+    /* an alert arrives the way an achievement does */
+    .push {
+      background: var(--raised);
+      backdrop-filter: none;
+      -webkit-backdrop-filter: none;
+      box-shadow: none;
+      transition: transform .28s steps(5), visibility 0s .28s;
+    }
+
+    .push.show {
+      transition: transform .28s steps(5);
+    }
+
+    .push.crit {
+      box-shadow: none;
+    }
+
+    .appicon {
+      width: 26px;
+      height: 22px;
+    }
+
+    .push-t {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .push-t .spr {
+      color: var(--star-ink);
+      background: var(--star);
+      box-sizing: content-box;
+      padding: 3px;
+    }
+
+    .push.crit .push-t .spr {
+      color: #fff;
+      background: var(--dark);
+    }
+
+    .toast {
+      transition: transform .2s steps(3), opacity .2s steps(3);
+    }
+
+    .sheet {
+      border-top-width: 2px;
+    }
+
+    /* ── home: LED board ────────────────────────────────────────────────────────────────────────────
+       The demo fakes a dot matrix with a mask over mono text. With a bitmap face on the same 3px grid
+       every glyph pixel lands on exactly one dot, and the text scrolls a whole column at a time. */
+    .led {
+      height: 33px;
+    }
+
+    .led>span {
+      --fs: 3px;
+      position: absolute;
+      left: 0;
+      top: 6px;
+      padding: 0;
+      flex-wrap: nowrap;
+      animation: none;
+    }
+
+    /* ── home: hero ─────────────────────────────────────────────────────────────────────────────── */
+    /* the one texture on this screen: a ragged grass fringe along the top of the card */
+    .hero {
+      padding-top: 24px;
+    }
+
+    .hero::before {
+      content: "";
+      position: absolute;
+      left: 2px;
+      right: 2px;
+      top: 0;
+      height: 12px;
+      background: var(--tx-fringe) 0 0 / 64px 12px repeat-x;
+      image-rendering: pixelated;
+      pointer-events: none;
+    }
+
+    .hero .startag {
+      order: 3;
+      margin-left: 0;
+      padding: 5px 8px 4px;
+    }
+
+    .startag {
+      padding: 4px 8px 3px;
+    }
+
+    .flapwrap {
+      margin-left: auto;
+      align-items: flex-end;
+    }
+
+    .flap {
+      perspective: none;
+    }
+
+    /* split-flap tiles keep their dark face and lose the hinge; a new digit drops in instead of flipping */
+    .flap .f {
+      --fs: 4px;
+      --bd: #100f0e;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      min-width: 0;
+      width: 32px;
+      height: 42px;
+      padding: 0;
+      background-color: #24221f;
+      color: #f6f1e4;
+      box-shadow: none;
+    }
+
+    :root[data-theme="dark"] .flap .f {
+      --bd: #4a453b;
+    }
+
+    .flap .f::after {
+      display: none;
+    }
+
+    .flap .f.sep {
+      width: 18px;
+      border-color: transparent !important;
+      background-image: none !important;
+    }
+
+    .flap .f.flip {
+      animation: none;
+    }
+
+    .flap .f.flip svg {
+      animation: drop .22s steps(2) both;
+      animation-delay: inherit;
+    }
+
+    .unit {
+      padding-bottom: 6px;
+    }
+
+    .h-main .conf {
+      display: none;
+    }
+
+    /* confidence, as three hearts */
+    .hearts {
+      order: 4;
+      display: inline-flex;
+      gap: 2px;
+      margin-left: auto;
+      color: var(--live);
+      --s: 2px;
+    }
+
+    .hearts[data-conf="low"] {
+      color: var(--degraded);
+    }
+
+    /* the fuse, as twenty segments that go out one at a time */
+    .leave {
+      padding-bottom: 28px;
+      transition: none;
+    }
+
+    .fuse {
+      left: 12px;
+      right: 12px;
+      bottom: 10px;
+      width: auto !important;
+      height: 8px;
+      background: color-mix(in srgb, var(--ink) 13%, transparent);
+      transition: none;
+    }
+
+    .fuse::before {
+      content: "";
+      position: absolute;
+      inset: 0;
+      width: calc(var(--v, 0) * 100%);
+      background: var(--live);
+    }
+
+    .fuse::after {
+      content: "";
+      position: absolute;
+      inset: 0;
+      background: repeating-linear-gradient(90deg, transparent 0 calc(5% - 2px), var(--raised) calc(5% - 2px) 5%);
+    }
+
+    .leave.go {
+      padding-bottom: 12px;
+      animation: goblink 1.2s steps(1) infinite;
+    }
+
+    @keyframes goblink {
+      50% {
+        filter: brightness(1.14);
+      }
+    }
+
+    /* ── home: the map — carts on rails ─────────────────────────────────────────────────────────── */
+    .blk #map {
+      shape-rendering: crispEdges;
+    }
+
+    .blk #map image {
+      image-rendering: pixelated;
+    }
+
+    .blk #map .terr.d,
+    :root[data-theme="dark"] .blk #map .terr.l {
+      display: none;
+    }
+
+    :root[data-theme="dark"] .blk #map .terr.d {
+      display: block;
+    }
+
+    /* the route paths still carry the geometry (the simulation reads positions from them); the
+       rails are drawn from copies */
+    .blk #map .rt {
+      stroke: none !important;
+    }
+
+    #rails path {
+      fill: none;
+      stroke-linejoin: miter;
+      stroke-linecap: butt;
+    }
+
+    #rails .iron {
+      stroke: var(--iron);
+      stroke-width: 6;
+    }
+
+    #rails .gap {
+      stroke: var(--map-bg);
+      stroke-width: 2;
+    }
+
+    #rails .bed {
+      stroke: var(--sleeper);
+      stroke-width: 8;
+      stroke-dasharray: 2 4;
+    }
+
+    /* the route you follow is powered: a pulse marches along it towards the campus */
+    #rails .pwr {
+      stroke: var(--route);
+      stroke-width: 2;
+      stroke-dasharray: 6 12;
+      animation: pwr 1.2s steps(9) infinite;
+    }
+
+    @keyframes pwr {
+      from {
+        stroke-dashoffset: 18;
+      }
+
+      to {
+        stroke-dashoffset: 0;
+      }
+    }
+
+    #rails g.dim {
+      opacity: .4;
+    }
+
+    #rails g.dim .pwr {
+      display: none;
+    }
+
+    .blk #map .stop {
+      stroke-width: 2;
+    }
+
+    .blk #map .stop.minor {
+      stroke-width: 2;
+    }
+
+    /* your stop is a lantern */
+    .blk #map .stop.mine {
+      fill: var(--star);
+      stroke: var(--focus);
+      stroke-width: 2;
+    }
+
+    .blk #map .ring {
+      stroke-width: 2;
+      transform-box: fill-box;
+      transform-origin: center;
+      animation: ring 1.6s steps(4) infinite;
+    }
+
+    @keyframes ring {
+      to {
+        transform: scale(1.7);
+        opacity: 0;
+      }
+    }
+
+    .blk #map .walk {
+      stroke-width: 2;
+      stroke-dasharray: 2 4;
+      stroke-linecap: butt;
+    }
+
+    .blk #map .bed .frame {
+      fill: var(--edge);
+    }
+
+    .blk #map .bed .quilt {
+      fill: var(--dark);
+    }
+
+    .blk #map .bed .pillow {
+      fill: var(--panel);
+    }
+
+    .blk #map .campus path {
+      fill: var(--ink);
+    }
+
+    .blk #map .campus .lit {
+      fill: var(--star);
+    }
+
+    .blk #map .campus .flag {
+      fill: var(--live);
+    }
+
+    .blk #map .campus text {
+      fill: var(--live-ink);
+    }
+
+    /* the cart. Its body carries the bus number; colour follows the same states as before */
+    .blk #map .bus {
+      filter: none;
+      color: var(--edge);
+    }
+
+    .blk #map .bus .body {
+      fill: var(--live);
+      stroke: currentColor;
+      stroke-width: 2;
+    }
+
+    .blk #map .bus .rim,
+    .blk #map .bus .wheel {
+      fill: currentColor;
+    }
+
+    .blk #map .bus .n,
+    .blk #map .bus.star .n {
+      transform: none;
+    }
+
+    .blk #map .bus.star .body {
+      fill: var(--star);
+    }
+
+    .blk #map.has-star .bus[data-state="LIVE"]:not(.star) {
+      color: var(--live);
+    }
+
+    .blk #map.has-star .bus[data-state="LIVE"]:not(.star) .body {
+      fill: var(--panel);
+    }
+
+    .blk #map .bus[data-state="DEGRADED"] {
+      color: var(--degraded);
+    }
+
+    .blk #map .bus[data-state="DEGRADED"] .body {
+      fill: var(--panel);
+      stroke-dasharray: 4 2;
+    }
+
+    .blk #map .bus[data-state="DARK"] {
+      color: var(--dark);
+    }
+
+    .blk #map .bus[data-state="DARK"] .body {
+      fill: var(--panel);
+    }
+
+    .blk #map .bus[data-state="DARK"] .wheel {
+      fill: none;
+    }
+
+    .blk #map .bus .halo {
+      transform-origin: center;
+    }
+
+    .blk #map .bus.mine .halo {
+      animation: halo 2.2s steps(5) infinite;
+    }
+
+    /* your bus is "enchanted": a glint steps across it every few seconds */
+    .blk #map .bus .glint {
+      display: none;
+      fill: #fff;
+      opacity: .55;
+    }
+
+    .blk #map .bus.star[data-state="LIVE"] .glint {
+      display: block;
+      animation: glint 3.2s steps(1) infinite;
+    }
+
+    @keyframes glint {
+
+      0%,
+      30%,
+      100% {
+        opacity: 0;
+      }
+
+      6% {
+        opacity: .55;
+        transform: translateX(0);
+      }
+
+      12% {
+        opacity: .55;
+        transform: translateX(6px);
+      }
+
+      18% {
+        opacity: .55;
+        transform: translateX(12px);
+      }
+
+      24% {
+        opacity: .55;
+        transform: translateX(18px);
+      }
+    }
+
+    /* signal lost: the cart sits in a patch the map has stopped loading */
+    .blk #map .bus .fog {
+      display: none;
+      fill: url(#fog);
+      stroke: var(--dark);
+      stroke-width: 2;
+      stroke-dasharray: 4 4;
+      opacity: .85;
+    }
+
+    .blk #map .bus[data-state="DARK"] .fog {
+      display: block;
+    }
+
+    #fog .f1 {
+      fill: var(--map-bg);
+    }
+
+    #fog .f2 {
+      fill: var(--map-dot);
+    }
+
+    .blk .legend i {
+      position: relative;
+      width: 16px;
+      height: 10px;
+      margin-right: 6px;
+      vertical-align: 1px;
+    }
+
+    .blk .legend i::after {
+      content: "";
+      position: absolute;
+      left: 0;
+      bottom: -6px;
+      width: 3px;
+      height: 3px;
+      background: var(--muted);
+      box-shadow: 7px 0 0 var(--muted);
+    }
+
+    /* Settings › Map style. The card carries .blk for the block map; without it the map is drawn as in
+       demo/index.html. Both sets of marks are in the page and this shows one of them. */
+    .map-card:not(.blk) .k-block,
+    .map-card.blk .k-classic {
+      display: none !important;
+    }
+
+    .map-card:not(.blk) .legend i {
+      border-radius: 5px !important;
+    }
+
+    /* ── home: route timeline ───────────────────────────────────────────────────────────────────── */
+    .tl .seg-l {
+      width: 2px;
+    }
+
+    /* a torch is left burning at each stop the bus has passed */
+    .tl li.passed .d {
+      width: 4px;
+      height: 9px;
+      margin-top: 8px;
+      border: 0;
+      background: #7a5a3a;
+    }
+
+    .tl li.passed .d::before {
+      content: "";
+      position: absolute;
+      left: -1px;
+      top: -6px;
+      width: 6px;
+      height: 6px;
+      background: var(--star);
+      box-shadow: 0 0 0 2px color-mix(in srgb, var(--star) 35%, transparent);
+    }
+
+    .tl li.passed .seg-l {
+      margin-top: 2px;
+    }
+
+    .tl .here {
+      display: inline-flex;
+      align-items: center;
+      gap: 4px;
+      padding: 1px 6px;
+      vertical-align: -3px;
+    }
+
+    .tl .here .spr {
+      --s: 1px;
+    }
+
+    .tl .here .spr rect {
+      opacity: 1;
+    }
+
+    .tl .here.warn,
+    .tl .here.dark {
+      line-height: 16px;
+    }
+
+    /* ── onboarding ─────────────────────────────────────────────────────────────────────────────── */
+    .welcome-art .w-cart {
+      animation: ride 9s steps(52) infinite;
+    }
+
+    @keyframes ride {
+      0% {
+        transform: translateX(0);
+      }
+
+      80%,
+      100% {
+        transform: translateX(208px);
+      }
+    }
+
+    .welcome-art .w-sun {
+      animation: lamp 4s steps(1) infinite;
+    }
+
+    .otp .cell {
+      --fs: 4px;
+      transition: none;
+    }
+
+    .otp .cell.filled {
+      animation: none;
+    }
+
+    .otp .cell.filled svg {
+      animation: drop .2s steps(2);
+    }
+
+    .assure .spr {
+      color: var(--live);
+      margin-top: 1px;
+    }
+
+    .tick {
+      position: relative;
+      display: grid;
+      place-items: center;
+      width: 120px;
+      height: 110px;
+      margin-bottom: 18px;
+      color: var(--live);
+    }
+
+    .tick .spr {
+      --s: 10px;
+      animation: drop .3s steps(3) .1s both;
+    }
+
+    .tick i {
+      position: absolute;
+      left: 56px;
+      top: 50px;
+      width: 8px;
+      height: 8px;
+      background: var(--star);
+      animation: orb .7s steps(6) .35s both;
+    }
+
+    .tick i:nth-child(odd) {
+      background: var(--live);
+    }
+
+    @keyframes orb {
+      from {
+        opacity: 1;
+      }
+
+      to {
+        opacity: 0;
+        transform: translate(var(--dx), var(--dy));
+      }
+    }
+
+    /* ── search, favourites, alerts, settings ───────────────────────────────────────────────────── */
+    .search .spr {
+      color: var(--muted);
+    }
+
+    .sc-head .pin .spr {
+      --s: 2px;
+    }
+
+    .h-stop .spr {
+      color: var(--focus);
+    }
+
+    .bl {
+      border-top-style: solid;
+      border-top-width: 2px;
+      border-image: repeating-linear-gradient(90deg, var(--line) 0 4px, transparent 4px 8px) 2;
+    }
+
+    .results .none {
+      list-style: none;
+      display: grid;
+      place-items: center;
+      padding: 26px 0;
+      color: var(--muted);
+    }
+
+    .results .none .spr {
+      --s: 5px;
+    }
+
+    .heart .spr {
+      --s: 2px;
+    }
+
+    .fav-star {
+      position: relative;
+      overflow: hidden;
+    }
+
+    .fav-star .spr {
+      --s: 3px;
+    }
+
+    .fav.star {
+      box-shadow: inset 4px 0 0 var(--star);
+    }
+
+    /* the starred row carries the same glint as its cart on the map */
+    .fav.star .fav-star::after {
+      content: "";
+      position: absolute;
+      top: 0;
+      bottom: 0;
+      left: -10px;
+      width: 8px;
+      background: rgb(255 255 255 / .6);
+      animation: sweep 3.2s steps(8) infinite;
+    }
+
+    @keyframes sweep {
+
+      0%,
+      70% {
+        transform: translateX(0);
+      }
+
+      100% {
+        transform: translateX(60px);
+      }
+    }
+
+    .fav-main b {
+      display: inline-flex;
+      align-items: center;
+      gap: 7px;
+    }
+
+    .fav-main b .spr {
+      --s: 2px;
+      color: var(--muted);
+    }
+
+    .fav.star .fav-main b .spr {
+      color: var(--star);
+    }
+
+    .fav.star .fav-main b .spr rect {
+      opacity: 1;
+    }
+
+    .fav-main .startag {
+      margin: 5px 0 1px;
+      vertical-align: 0;
+    }
+
+    .tier {
+      display: grid;
+      gap: 6px;
+    }
+
+    .tier .spr {
+      --s: 3px;
+    }
+
+    .stub-l {
+      border-right-style: solid;
+      border-image: repeating-linear-gradient(0deg, var(--line) 0 4px, transparent 4px 8px) 2;
+    }
+
+    .stub.unread .stub-r b::before {
+      width: 6px;
+      height: 6px;
+    }
+
+    .ticket {
+      padding: 4px 9px 4px 6px;
+    }
+
+    .ticket .spr {
+      --s: 1px;
+      color: var(--degraded);
+    }
+
+    .ticket .spr rect {
+      opacity: 1;
+    }
+
+    .ticket.ok .spr {
+      color: var(--live);
+    }
+
+    /* a switch is a lever: the stick leans towards "on" and its tip lights */
+    .sw {
+      width: 44px;
+      background: none;
+      transition: none;
+    }
+
+    .sw.on {
+      background: none;
+    }
+
+    .sw::before {
+      content: "";
+      position: absolute;
+      left: 8px;
+      right: 8px;
+      bottom: 3px;
+      height: 6px;
+      background: var(--muted);
+      box-shadow: inset 0 -2px 0 rgb(0 0 0 / .25);
+    }
+
+    .sw::after {
+      top: auto;
+      left: 20px;
+      bottom: 9px;
+      width: 4px;
+      height: 4px;
+      background: var(--muted);
+      box-shadow: -4px -4px 0 var(--muted), -8px -8px 0 var(--line);
+      transform: none;
+      transition: none;
+    }
+
+    .sw.on::before {
+      background: var(--ink);
+    }
+
+    .sw.on::after {
+      background: var(--ink);
+      box-shadow: 4px -4px 0 var(--ink), 8px -8px 0 var(--live);
+      transform: none;
+    }
+
+    /* home is where the bed is */
+    .minimap {
+      display: grid;
+      place-items: center;
+    }
+
+    .minimap::after {
+      display: none;
+    }
+
+    .minimap .spr {
+      position: relative;
+      --s: 3px;
+      color: var(--focus);
+    }
+
+    /* ── the driver's phone: frames and counters only ───────────────────────────────────────────── */
+    .d-nums b {
+      --fs: 5px;
+      display: flex;
+      min-height: 35px;
+    }
+
+    .d-nums div {
+      position: relative;
+    }
+
+    /* positions waiting for a network sit in a chest */
+    .d-nums .spr {
+      position: absolute;
+      right: 14px;
+      top: 14px;
+      --s: 3px;
+      color: var(--muted);
+      opacity: .45;
+    }
+
+    .d-nums div.hold .spr {
+      color: var(--degraded);
+      opacity: 1;
+      animation: drop .22s steps(2);
+    }
+
+    .d-routes button.on {
+      box-shadow: none;
+    }
+
+    /* ── the Transport Department console: light touch — corners, lamps and numerals only ────────── */
+    .a-tile b {
+      --fs: 4px;
+      display: flex;
+      min-height: 30px;
+      margin-bottom: 4px;
+    }
+
+    /* signal lamps: lit, flickering, dark */
+    .g {
+      display: inline-block;
+      width: 8px;
+      height: 8px;
+      font-size: 0;
+      background: currentColor;
+    }
+
+    .g.late {
+      animation: lamp .8s steps(1) infinite;
+    }
+
+    .g.lost,
+    .g.off {
+      background: none;
+      box-shadow: inset 0 0 0 2px currentColor;
+    }
+
+    .g.off {
+      opacity: .5;
+    }
+
+    /* each bus's progress is a small cart on a rail */
+    .trk::before {
+      top: 10px;
+      height: 2px;
+    }
+
+    .trk i {
+      top: 8px;
+    }
+
+    .trk b {
+      top: 1px;
+      width: 14px;
+      height: 8px;
+      border: 0;
+    }
+
+    .trk b::after {
+      content: "";
+      position: absolute;
+      left: 2px;
+      bottom: -3px;
+      width: 3px;
+      height: 3px;
+      background: var(--ink);
+      box-shadow: 7px 0 0 var(--ink);
+    }
+
+    tr.lost .trk b {
+      box-shadow: inset 0 0 0 2px var(--dark);
+    }
   </style>
 </head>
 
@@ -3500,41 +4813,49 @@
             <!-- welcome -->
             <section class="view welcome" data-view="welcome">
               <div class="welcome-art">
-                <svg viewBox="0 0 320 300" fill="none" stroke-linecap="round" stroke-linejoin="round"
-                  aria-hidden="true">
-                  <path id="wpath" d="M20 250 H90 L150 190 V120 L200 70 H300" stroke="var(--live)" stroke-width="12" />
-                  <path d="M20 120 H100 L150 170" stroke="var(--route)" stroke-width="8" opacity=".45" />
-                  <path d="M200 270 V200 L150 150" stroke="var(--degraded)" stroke-width="8" opacity=".35" />
-                  <g fill="var(--canvas)" stroke="var(--ink)" stroke-width="4">
-                    <circle cx="20" cy="250" r="9" />
-                    <circle cx="90" cy="250" r="9" />
-                    <circle cx="150" cy="155" r="11" />
-                    <circle cx="200" cy="70" r="9" />
-                    <circle cx="300" cy="70" r="9" />
+                <svg viewBox="0 0 320 300" shape-rendering="crispEdges" aria-hidden="true">
+                  <!-- a square sun, stepped hills, and one cart on its way from Home to the campus -->
+                  <rect class="w-sun" x="214" y="26" width="52" height="52"
+                    fill="color-mix(in srgb, var(--star) 35%, transparent)" />
+                  <rect x="222" y="34" width="36" height="36" fill="var(--star)" />
+                  <path fill="var(--panel)" stroke="var(--line)" stroke-width="2"
+                    d="M40 64 V52 H56 V40 H88 V52 H100 V64Z M132 108 V98 H146 V88 H170 V98 H182 V108Z" />
+                  <path fill="color-mix(in srgb, var(--live) 14%, var(--canvas))"
+                    d="M0 232 V196 H24 V180 H56 V164 H96 V180 H124 V196 H148 V212 H180 V232Z" />
+                  <path fill="color-mix(in srgb, var(--live) 26%, var(--canvas))"
+                    d="M112 232 V212 H148 V192 H184 V172 H228 V156 H264 V172 H292 V196 H320 V232Z" />
+                  <rect x="0" y="236" width="320" height="10" fill="var(--live)" />
+                  <path fill="var(--live)"
+                    d="M0 246 h8 v4 h-8z M20 246 h12 v6 h-12z M48 246 h8 v4 h-8z M76 246 h16 v4 h-16z M108 246 h8 v6 h-8z M136 246 h12 v4 h-12z M168 246 h8 v4 h-8z M196 246 h16 v6 h-16z M232 246 h8 v4 h-8z M256 246 h12 v4 h-12z M288 246 h8 v6 h-8z M308 246 h12 v4 h-12z" />
+                  <path fill="none" stroke="var(--iron)" stroke-width="6" d="M0 233 H320" />
+                  <path fill="none" stroke="var(--canvas)" stroke-width="2" d="M0 233 H320" />
+                  <path fill="none" stroke="var(--sleeper)" stroke-width="8" stroke-dasharray="2 6" d="M0 233 H320" />
+                  <g>
+                    <path fill="var(--degraded)" d="M6 204 H50 V196 H42 V188 H34 V180 H22 V188 H14 V196 H6Z" />
+                    <rect x="12" y="204" width="32" height="26" fill="var(--panel)" stroke="var(--ink)"
+                      stroke-width="2" />
+                    <rect x="24" y="214" width="8" height="16" fill="var(--ink)" />
+                    <text x="28" y="272" fill="var(--muted)" font-size="12" font-weight="700" text-anchor="middle"
+                      font-family="var(--sans)">Home</text>
                   </g>
-                  <circle r="9" fill="var(--live)">
-                    <animateMotion dur="5s" repeatCount="indefinite" keyPoints="0;1" keyTimes="0;1" calcMode="spline"
-                      keySplines=".45 0 .35 1">
-                      <mpath href="#wpath" />
-                    </animateMotion>
-                  </circle>
-                  <circle r="9" fill="none" stroke="var(--live)" stroke-width="2">
-                    <animateMotion dur="5s" repeatCount="indefinite" keyPoints="0;1" keyTimes="0;1" calcMode="spline"
-                      keySplines=".45 0 .35 1">
-                      <mpath href="#wpath" />
-                    </animateMotion>
-                    <animate attributeName="r" values="9;22" dur="1.25s" repeatCount="indefinite" />
-                    <animate attributeName="opacity" values=".8;0" dur="1.25s" repeatCount="indefinite" />
-                  </circle>
-                  <text x="300" y="50" fill="var(--muted)" font-size="12" font-weight="700" text-anchor="middle"
-                    font-family="var(--sans)">CBIT</text>
-                  <text x="20" y="280" fill="var(--muted)" font-size="12" font-weight="700"
-                    font-family="var(--sans)">Home</text>
+                  <g>
+                    <path fill="var(--ink)" d="M266 230 V150 H274 V158 H282 V150 H290 V158 H298 V150 H306 V230Z" />
+                    <path fill="var(--star)" d="M276 170 h6 v10 h-6z M290 170 h6 v10 h-6z M282 208 h8 v22 h-8z" />
+                    <rect x="286" y="118" width="2" height="32" fill="var(--ink)" />
+                    <rect x="288" y="118" width="26" height="14" fill="var(--live)" />
+                    <text x="286" y="272" fill="var(--muted)" font-size="12" font-weight="700" text-anchor="middle"
+                      font-family="var(--sans)">CBIT</text>
+                  </g>
+                  <g class="w-cart">
+                    <path fill="var(--star)" stroke="var(--ink)" stroke-width="2" d="M57 207 H91 V223 H57Z" />
+                    <path fill="var(--ink)"
+                      d="M56 202 h2 v4 h-2z M90 202 h2 v4 h-2z M62 224 h6 v6 h-6z M80 224 h6 v6 h-6z" />
+                  </g>
                 </svg>
               </div>
               <div class="eyebrow">CBIT Transport</div>
               <h2>ETA</h2>
-              <p>Let's not miss the college bus again ^^</p>
+              <p>Let's not miss the bus again ^^</p>
               <div class="welcome-actions">
                 <button class="btn primary block" data-go="claim">Claim your account</button>
                 <button class="btn ghost block" data-go="claim">I already have one</button>
@@ -3588,10 +4909,7 @@
 
             <!-- ready -->
             <section class="view ready" data-view="ready">
-              <svg class="check" viewBox="0 0 110 110">
-                <circle cx="55" cy="55" r="48" />
-                <path d="M34 57 L49 71 L77 41" />
-              </svg>
+              <div class="tick" id="tick" aria-hidden="true"></div>
               <h2>Account ready</h2>
               <p class="muted">Roll <b id="rollEcho2" style="color:var(--ink)"></b> is linked to +91 ••••• ••821.</p>
               <button class="btn primary block" id="toSearch">Find my bus</button>
@@ -3622,7 +4940,8 @@
                       Your bus</span>
                     <span class="flapwrap"><span class="flap" id="flap"></span><span class="unit"
                         id="unit">min</span></span>
-                    <span class="conf" id="conf" role="img"></span>
+                    <span class="conf" id="conf" role="img"></span><span class="hearts" id="hearts" role="img"
+                      hidden></span>
                   </div>
                   <div class="h-stop"><svg viewBox="0 0 24 24" fill="currentColor">
                       <path
@@ -3641,39 +4960,53 @@
                 </div>
               </div>
 
-              <div class="map-card">
+              <div class="map-card blk" id="mapCard">
                 <svg id="map" viewBox="0 0 360 262" aria-label="Live map">
                   <defs>
                     <pattern id="dots" width="10" height="10" patternUnits="userSpaceOnUse">
                       <circle cx="1" cy="1" r="1" fill="var(--map-dot)" />
                     </pattern>
+                    <pattern id="fog" width="8" height="8" patternUnits="userSpaceOnUse">
+                      <rect class="f1" width="8" height="8" />
+                      <rect class="f2" width="4" height="4" />
+                      <rect class="f2" x="4" y="4" width="4" height="4" />
+                    </pattern>
                   </defs>
-                  <rect width="360" height="262" fill="url(#dots)" />
-                  <ellipse class="orr" cx="186" cy="140" rx="168" ry="122" />
-                  <path class="road"
-                    d="M0 62 L360 74 M126 0 L172 262 M268 0 L242 262 M0 236 L360 246 M0 196 C80 190 140 214 200 206" />
-                  <path class="river" d="M0 118 C50 124 92 110 140 116 S236 134 286 124 S340 110 360 112" />
-                  <path class="water" d="M10 92 C12 76 32 72 46 78 C58 84 56 100 44 106 C30 112 8 106 10 92Z" />
-                  <path class="water" d="M20 196 C24 186 44 184 56 192 C64 200 54 212 40 212 C26 212 18 204 20 196Z" />
-                  <path class="water"
-                    d="M206 84 C210 76 226 76 232 84 C236 92 228 100 218 100 C208 100 202 92 206 84Z" />
+                  <image class="terr l k-block" id="terrL" width="360" height="262" preserveAspectRatio="none" />
+                  <image class="terr d k-block" id="terrD" width="360" height="262" preserveAspectRatio="none" />
+                  <!-- the classic map's ground (Settings › Map style), as in demo/index.html -->
+                  <g class="k-classic">
+                    <rect width="360" height="262" fill="url(#dots)" />
+                    <ellipse class="orr" cx="186" cy="140" rx="168" ry="122" />
+                    <path class="road"
+                      d="M0 62 L360 74 M126 0 L172 262 M268 0 L242 262 M0 236 L360 246 M0 196 C80 190 140 214 200 206" />
+                    <path class="river" d="M0 118 C50 124 92 110 140 116 S236 134 286 124 S340 110 360 112" />
+                    <path class="water" d="M10 92 C12 76 32 72 46 78 C58 84 56 100 44 106 C30 112 8 106 10 92Z" />
+                    <path class="water"
+                      d="M20 196 C24 186 44 184 56 192 C64 200 54 212 40 212 C26 212 18 204 20 196Z" />
+                    <path class="water"
+                      d="M206 84 C210 76 226 76 232 84 C236 92 228 100 218 100 C208 100 202 92 206 84Z" />
+                  </g>
                   <text class="lbl lake" x="28" y="68" text-anchor="middle">Osman Sagar</text>
                   <text class="lbl lake" x="40" y="225" text-anchor="middle">Himayat Sagar</text>
                   <text class="lbl lake" x="219" y="72" text-anchor="middle">Hussain Sagar</text>
+                  <g id="rails" class="k-block"></g>
                   <g id="routes">
-                    <path id="r3" class="rt line dim"
-                      d="M156 16 C146 42 128 62 112 82 C96 102 78 120 60 134 C52 140 44 146 38 150" />
-                    <path id="r2" class="rt line dim"
-                      d="M338 60 C314 70 294 88 272 102 C250 116 224 124 196 130 C168 136 140 142 114 146 C92 149 62 151 38 150" />
-                    <path class="rt casing"
+                    <path id="r3" class="rt line dim" d="M156 18 V54 H114 V84 H72 V114 H36 V150" />
+                    <path id="r2" class="rt line dim" d="M336 60 H282 V96 H252 V132 H66 V150 H36" />
+                    <path class="rt casing k-classic"
                       d="M338 234 C322 228 308 218 292 210 C276 202 262 200 248 194 C232 187 222 180 206 174 C190 168 176 164 160 160 C140 155 124 154 108 152 C92 150 76 148 62 151 C52 153 44 152 38 150" />
-                    <path id="r1" class="rt line"
-                      d="M338 234 C322 228 308 218 292 210 C276 202 262 200 248 194 C232 187 222 180 206 174 C190 168 176 164 160 160 C140 155 124 154 108 152 C92 150 76 148 62 151 C52 153 44 152 38 150" />
+                    <path id="r1" class="rt line" d="M336 234 H288 V210 H240 V186 H192 V168 H132 V150 H36" />
                   </g>
                   <g id="stops"></g>
                   <g id="homepin"></g>
-                  <g class="campus" transform="translate(38 150)">
+                  <g class="campus k-classic" transform="translate(38 150)">
                     <rect x="-15" y="-27" width="30" height="13" rx="3" /><text y="-17.5">CBIT</text>
+                  </g>
+                  <g class="campus k-block" transform="translate(36 150)">
+                    <path d="M-7 8 V-10 H-5 V-8 H-1 V-10 H1 V-8 H5 V-10 H7 V8Z" />
+                    <path class="lit" d="M-3 -4 h2 v4 h-2z M1 -4 h2 v4 h-2z" />
+                    <path class="flag" d="M-15 -29 h30 v13 h-30z" /><text y="-19">CBIT</text>
                   </g>
                   <g id="buses"></g>
                   <g class="compass" transform="translate(344 20)">
@@ -3748,6 +5081,11 @@
                   <div><b>Safety margin</b><small>Added to every "leave in"</small></div>
                   <div class="seg" id="bufferSeg"><button data-b="1">1</button><button data-b="2"
                       class="on">2</button><button data-b="5">5</button></div>
+                </div>
+                <div class="row">
+                  <div><b>Map style</b><small>How the live map is drawn</small></div>
+                  <div class="seg" id="mapSeg"><button data-m="block" class="on">Blocks</button><button
+                      data-m="classic">Classic</button></div>
                 </div>
               </div>
               <div class="card list" style="padding:4px 0">
@@ -4026,6 +5364,212 @@
       const clock = (ms) => { const d = new Date(ms); return `${pad(d.getHours())}:${pad(d.getMinutes())}`; };
       const clamp = (x, a, b) => Math.max(a, Math.min(b, x));
 
+      // ── block edition: bitmap face, sprites, generated textures ───────────────────────────────
+      // Nothing here is loaded or copied from anywhere: the face is the table below, the icons are
+      // rows of characters, and the textures are painted from a seeded PRNG.
+      // 5x7, uppercase only. Rows are joined with "|"; a glyph's width is its row length.
+      const FONT = {
+        A: '.###.|#...#|#...#|#####|#...#|#...#|#...#',
+        B: '####.|#...#|#...#|####.|#...#|#...#|####.',
+        C: '.###.|#...#|#....|#....|#....|#...#|.###.',
+        D: '####.|#...#|#...#|#...#|#...#|#...#|####.',
+        E: '#####|#....|#....|####.|#....|#....|#####',
+        F: '#####|#....|#....|####.|#....|#....|#....',
+        G: '.###.|#...#|#....|#.###|#...#|#...#|.###.',
+        H: '#...#|#...#|#...#|#####|#...#|#...#|#...#',
+        I: '###|.#.|.#.|.#.|.#.|.#.|###',
+        J: '....#|....#|....#|....#|....#|#...#|.###.',
+        K: '#...#|#..#.|#.#..|##...|#.#..|#..#.|#...#',
+        L: '#....|#....|#....|#....|#....|#....|#####',
+        M: '#...#|##.##|#.#.#|#.#.#|#...#|#...#|#...#',
+        N: '#...#|##..#|#.#.#|#..##|#...#|#...#|#...#',
+        O: '.###.|#...#|#...#|#...#|#...#|#...#|.###.',
+        P: '####.|#...#|#...#|####.|#....|#....|#....',
+        Q: '.###.|#...#|#...#|#...#|#.#.#|#..#.|.##.#',
+        R: '####.|#...#|#...#|####.|#.#..|#..#.|#...#',
+        S: '.####|#....|#....|.###.|....#|....#|####.',
+        T: '#####|..#..|..#..|..#..|..#..|..#..|..#..',
+        U: '#...#|#...#|#...#|#...#|#...#|#...#|.###.',
+        V: '#...#|#...#|#...#|#...#|#...#|.#.#.|..#..',
+        W: '#...#|#...#|#...#|#.#.#|#.#.#|##.##|#...#',
+        X: '#...#|#...#|.#.#.|..#..|.#.#.|#...#|#...#',
+        Y: '#...#|#...#|.#.#.|..#..|..#..|..#..|..#..',
+        Z: '#####|....#|...#.|..#..|.#...|#....|#####',
+        0: '.###.|#...#|#..##|#.#.#|##..#|#...#|.###.',
+        1: '..#..|.##..|..#..|..#..|..#..|..#..|.###.',
+        2: '.###.|#...#|....#|...#.|..#..|.#...|#####',
+        3: '.###.|#...#|....#|..##.|....#|#...#|.###.',
+        4: '...#.|..##.|.#.#.|#..#.|#####|...#.|...#.',
+        5: '#####|#....|####.|....#|....#|#...#|.###.',
+        6: '..##.|.#...|#....|####.|#...#|#...#|.###.',
+        7: '#####|....#|...#.|..#..|.#...|.#...|.#...',
+        8: '.###.|#...#|#...#|.###.|#...#|#...#|.###.',
+        9: '.###.|#...#|#...#|.####|....#|...#.|.##..',
+        ' ': '...|...|...|...|...|...|...',
+        '.': '.|.|.|.|.|.|#',
+        ',': '..|..|..|..|..|.#|#.',
+        ':': '.|.|#|.|.|#|.',
+        '!': '#|#|#|#|#|.|#',
+        "'": '#|#|.|.|.|.|.',
+        '·': '.|.|.|#|.|.|.',
+        '-': '...|...|...|###|...|...|...',
+        '–': '....|....|....|####|....|....|....',
+        '—': '.....|.....|.....|#####|.....|.....|.....',
+        '~': '.....|.....|.#...|#.#.#|...#.|.....|.....',
+        '/': '....#|....#|...#.|..#..|.#...|#....|#....',
+        '+': '.....|..#..|..#..|#####|..#..|..#..|.....',
+        '?': '.###.|#...#|....#|...#.|..#..|.....|..#..',
+        '→': '.....|..#..|...#.|#####|...#.|..#..|.....',
+        '◆': '.....|..#..|.###.|#####|.###.|..#..|.....',
+        '★': '..#..|..#..|#####|.###.|.#.#.|#...#|.....',
+      };
+      for (const k in FONT) FONT[k] = FONT[k].split('|');
+
+      // each lit run in a row becomes one sub-path, so a string is a single <path> however long it is
+      function glyphs(word) {
+        let x = 0; let d = '';
+        for (const ch of word) {
+          const g = FONT[ch] || FONT[ch.toUpperCase()] || FONT['?'];
+          const w = g[0].length;
+          for (let r = 0; r < 7; r++) {
+            for (let c = 0; c < w; c++) {
+              if (g[r][c] !== '#') continue;
+              const s = c;
+              while (c < w && g[r][c] === '#') c++;
+              d += `M${x + s} ${r}h${c - s}v1h${s - c}z`;
+            }
+          }
+          x += w + 1;
+        }
+        return { d, w: x - 1 };
+      }
+      // the text itself stays in the DOM (.t) for screen readers and copy; `line` keeps it as one strip
+      let pxWidth = 0;
+      function pxHtml(text, line) {
+        pxWidth = 0;
+        return `<span class="t">${esc(text)}</span>` + (line ? [text] : text.split(' ').filter(Boolean)).map((word) => {
+          const g = glyphs(word);
+          pxWidth += g.w;
+          return `<svg aria-hidden="true" viewBox="0 0 ${g.w} 7" style="--w:${g.w}" shape-rendering="crispEdges"><path d="${g.d}"/></svg>`;
+        }).join('');
+      }
+      function px(el, text, line) {
+        if (el.dataset.shown === text) return Number(el.dataset.pxw);
+        el.dataset.shown = text;
+        el.classList.add('px');
+        el.innerHTML = pxHtml(text, line);
+        el.dataset.pxw = pxWidth;
+        return pxWidth;
+      }
+      // numerals in a mixed string ("4.0 s", "5 of 5") go to pixels; the words around them stay as they are
+      const pxNums = (el) => { el.innerHTML = esc(el.textContent).replace(/[\d.,]+/g, (m) => `<span class="px">${pxHtml(m)}</span>`); };
+
+      // sprites: rows of keys, "." is empty. "#" is the outline; the other keys are fills, drawn as a tint
+      function sprite(rows, cls = '') {
+        let o = '';
+        rows.forEach((row, y) => {
+          for (let x = 0; x < row.length;) {
+            const ch = row[x];
+            let e = x;
+            while (e < row.length && row[e] === ch) e++;
+            if (ch !== '.') o += `<rect class="c-${ch === '#' ? 'o' : ch}" x="${x}" y="${y}" width="${e - x}" height="1"/>`;
+            x = e;
+          }
+        });
+        return `<svg class="spr ${cls}" aria-hidden="true" viewBox="0 0 ${rows[0].length} ${rows.length}" style="--w:${rows[0].length};--h:${rows.length}" shape-rendering="crispEdges">${o}</svg>`;
+      }
+      const ART = {
+        cart: ['#.........#', '#sssssssss#', '#sssssssss#', '.#sssssss#.', '..#######..', '..kk...kk..'],
+        heart: ['.##...##.', '#rr#.#rr#', '#rwrrrrr#', '#rrrrrrr#', '#rrrrrrr#', '.#rrrrr#.', '..#rrr#..', '...#r#...', '....#....'],
+        pin: ['.###.', '#rrr#', '#rwr#', '#rrr#', '.#r#.', '.#r#.', '..#..'],
+        mark: ['#######', '#ppppp#', '#ppppp#', '#ppppp#', '#ppppp#', '#pp#pp#', '#p#.#p#', '##...##'],
+        bed: ['wwrrrrrrr', 'wwrrrrrrr', '#########', '#.......#'],
+        tick: ['........#', '.......##', '#.....##.', '##...##..', '.##.##...', '..###....', '...#.....'],
+        lock: ['..#####..', '.#.....#.', '.#.....#.', '#########', '#ppppppp#', '#ppp#ppp#', '#ppp#ppp#', '#ppppppp#', '#########'],
+        chest: ['.........', '.#######.', '#ppppppp#', '#ppppppp#', '#########', '#pp#s#pp#', '#ppppppp#', '#ppppppp#', '#########'],
+        // tab bar
+        map: ['.#######.', '#ppppppp#', '#pgpppbp#', '#pggpbbp#', '#ppgpbpp#', '#pprpppp#', '#ppppggp#', '#ppppppp#', '.#######.'],
+        search: ['..####...', '.#cccc#..', '#ccwccc#.', '#cwcccc#.', '#cccccc#.', '.#cccc#..', '..####k..', '......kk.', '.......kk'],
+        star: ['....#....', '...#y#...', '...#y#...', '####y####', '#yyyyyyy#', '.#yyyyy#.', '.#yy#yy#.', '#yy#.#yy#', '###...###'],
+        bell: ['....#....', '...#y#...', '..#yyy#..', '..#ywy#..', '.#yyyyy#.', '.#yyyyy#.', '#yyyyyyy#', '#########', '....#....'],
+        lever: ['.........', '......rr.', '.....kk..', '....kk...', '...kk....', '.#sssss#.', '#sssssss#', '#sssssss#', '#########'],
+        // alert tiers: critical, urgent (bell, above), important, info — and the repair ticket
+        lamp: ['.#######.', '#rrrrrrr#', '#rwwrrrr#', '#rwrrrrr#', '#rrrrrrr#', '#rrrrrrr#', '#rrrrrrr#', '#rrrrrrr#', '.#######.'],
+        sign: ['#########', '#ppppppp#', '#p#####p#', '#ppppppp#', '#########', '....k....', '....k....', '....k....', '....k....'],
+        book: ['.........', '.#######.', '#ppp#ppp#', '#p#p#p#p#', '#ppp#ppp#', '#p#p#p#p#', '#ppp#ppp#', '#########', '.........'],
+        anvil: ['.........', '#########', '#########', '.#######.', '...###...', '...###...', '..#####..', '.#######.', '.#######.'],
+        // presenter scenarios and the edge rail
+        boots: ['.........', '..###....', '..#p#....', '..#p#....', '..#p##...', '..#ppp##.', '..#ppppp#', '..#######', '.........'],
+        snow: ['.#######.', '#s.s.s.s#', '#.s.s.s.#', '#s.s.s.s#', '#.s.s.s.#', '#s.s.s.s#', '#.s.s.s.#', '#s.s.s.s#', '.#######.'],
+        clock: ['..#####..', '.#yy#yy#.', '#yyy#yyy#', '#yyy#yyy#', '#yyy###y#', '#yyyyyyy#', '#yyyyyyy#', '.#yyyyy#.', '..#####..'],
+        screen: ['#########', '#ccccccc#', '#ccccccc#', '#ccccccc#', '#ccccccc#', '#########', '...###...', '..#####..', '.........'],
+        grow: ['###...###', '#.......#', '#.......#', '.........', '.........', '.........', '#.......#', '#.......#', '###...###'],
+        shrink: ['..#...#..', '..#...#..', '###...###', '.........', '.........', '.........', '###...###', '..#...#..', '..#...#..'],
+        sun: ['....#....', '.#.....#.', '..#####..', '..#yyy#..', '#.#yyy#.#', '..#yyy#..', '..#####..', '.#.....#.', '....#....'],
+      };
+      const TIER_ART = ['lamp', 'bell', 'sign', 'book'];
+      const CART_I = sprite(ART.cart);
+
+      // a heart keeps its outline and loses its fill
+      const heartSpr = (full) => sprite(ART.heart.map((row) => (full ? row : row.replace(/[rw]/g, 'e'))));
+      function setHearts(conf) {
+        const el = $('#hearts');
+        el.hidden = !conf;
+        if (!conf || el.dataset.conf === conf) return;
+        el.dataset.conf = conf;
+        const n = { high: 3, medium: 2, low: 1 }[conf];
+        el.innerHTML = [0, 1, 2].map((i) => heartSpr(i < n)).join('');
+        el.title = el.ariaLabel = `${conf} confidence`;
+      }
+
+      function rng(seed) {
+        return () => {
+          seed = seed + 0x6D2B79F5 | 0;
+          let t = Math.imul(seed ^ seed >>> 15, 1 | seed);
+          t = t + Math.imul(t ^ t >>> 7, 61 | t) ^ t;
+          return ((t ^ t >>> 14) >>> 0) / 4294967296;
+        };
+      }
+      function tile(w, h, seed, fn) {
+        const c = document.createElement('canvas');
+        c.width = w; c.height = h;
+        const g = c.getContext('2d');
+        const r = rng(seed);
+        for (let y = 0; y < h; y++) for (let x = 0; x < w; x++) {
+          const col = fn(x, y, r);
+          if (col) { g.fillStyle = col; g.fillRect(x, y, 1, 1); }
+        }
+        return c.toDataURL();
+      }
+      // the grass fringe on the hero card, in the demo's own green so it belongs to the palette
+      function fringe(night) {
+        const tones = night ? ['#6cc7a0', '#6cc7a0', '#6cc7a0', '#8ad9b6'] : ['#1f6b4f', '#1f6b4f', '#1f6b4f', '#2f8463'];
+        const d = rng(32);
+        const depth = Array.from({ length: 32 }, () => 3 + Math.floor(d() * 3));
+        return tile(32, 6, 18, (x, y, r) => (y < depth[x] ? tones[Math.floor(r() * tones.length)] : null));
+      }
+      // the map's ground, one cell per 2 map units: the three lakes, the river, the ring road as a dotted
+      // loop, and a scatter of trees. Schematic, like the map it replaces.
+      function terrain(night) {
+        const C = night
+          ? { bg: '#1a1917', dot: '#252320', water: '#1c2c33', edge: '#35525e', road: '#2f2c27', tree: '#24352a' }
+          : { bg: '#ebe5d8', dot: '#ded6c6', water: '#cddde2', edge: '#9dbbc6', road: '#f8f4ec', tree: '#c2cfae' };
+        const LAKES = [[33, 90, 24, 16], [40, 199, 23, 13], [219, 88, 15, 12]];
+        const RIVER = [[54, 100, 150, 100], [150, 100, 150, 114], [150, 114, 300, 114], [300, 114, 300, 122], [300, 122, 360, 122]];
+        const lake = (x, y, k) => LAKES.some(([cx, cy, rx, ry]) => ((x - cx) / (rx * k)) ** 2 + ((y - cy) / (ry * k)) ** 2 < 1);
+        const river = (x, y) => RIVER.some(([x1, y1, x2, y2]) => x >= Math.min(x1, x2) - 2 && x <= Math.max(x1, x2) + 2 && y >= Math.min(y1, y2) - 2 && y <= Math.max(y1, y2) + 2);
+        return tile(180, 131, 41, (cx, cy, r) => {
+          const x = cx * 2 + 1; const y = cy * 2 + 1; const v = r();
+          if (lake(x, y, 0.84)) return C.water;
+          if (lake(x, y, 1) || river(x, y)) return C.edge;
+          const ring = ((x - 186) / 168) ** 2 + ((y - 140) / 122) ** 2;
+          if (Math.abs(ring - 1) < 0.035 && (cx + cy) % 2 === 0) return C.road;
+          return v < 0.012 ? C.tree : v < 0.07 ? C.dot : C.bg;
+        });
+      }
+      document.head.appendChild(document.createElement('style')).textContent =
+        `:root{--tx-fringe:url(${fringe(false)})}:root[data-theme="dark"]{--tx-fringe:url(${fringe(true)})}`;
+
       // ── data ──────────────────────────────────────────────────────────────────────────────────
       const START = (() => { const d = new Date(); d.setHours(7, 24, 0, 0); return d.getTime(); })();
       const DAY = 86400e3;
@@ -4044,18 +5588,18 @@
       const ROUTES = {
         r1: {
           name: 'Route 1 · Hayathnagar → CBIT', short: 'Route 1', trip: 60, stops: [
-            ['Hayathnagar', 0, [-2, 14, 'end']], ['Vanasthalipuram', 0.1], ['LB Nagar', 0.2, [6, 13, 'start']],
-            ['Kothapet', 0.3], ['Dilsukhnagar', 0.42, [-2, -10, 'middle']], ['Malakpet', 0.52], ['Mehdipatnam', 0.68, [0, 14, 'middle']],
+            ['Hayathnagar', 0, [0, -9, 'end']], ['Vanasthalipuram', 0.1], ['LB Nagar', 0.2, [-8, -8, 'end']],
+            ['Kothapet', 0.3], ['Dilsukhnagar', 0.42, [0, -10, 'middle']], ['Malakpet', 0.52], ['Mehdipatnam', 0.68, [4, 15, 'middle']],
             ['Tolichowki', 0.77], ['Narsingi', 0.88], ['CBIT Gandipet', 1]]
         },
         r2: {
           name: 'Route 4 · Uppal → CBIT', short: 'Route 4', trip: 50, stops: [
-            ['Uppal X Roads', 0, [-4, -7, 'end']], ['Tarnaka', 0.15], ['Secunderabad', 0.3, [0, -8, 'middle']], ['Begumpet', 0.45],
+            ['Uppal X Roads', 0, [0, -9, 'end']], ['Tarnaka', 0.15], ['Secunderabad', 0.3, [8, 14, 'start']], ['Begumpet', 0.45],
             ['Banjara Hills', 0.62], ['Gachibowli', 0.8], ['CBIT Gandipet', 1]]
         },
         r3: {
           name: 'Route 6 · Miyapur → CBIT', short: 'Route 6', trip: 45, stops: [
-            ['Miyapur', 0, [6, 4, 'start']], ['Kukatpally', 0.22], ['JNTU', 0.35], ['Kondapur', 0.55], ['Hitec City', 0.75], ['CBIT Gandipet', 1]]
+            ['Miyapur', 0, [9, 4, 'start']], ['Kukatpally', 0.22], ['JNTU', 0.35], ['Kondapur', 0.55], ['Hitec City', 0.75], ['CBIT Gandipet', 1]]
         },
       };
       for (const R of Object.values(ROUTES)) R.stops = R.stops.map(([name, f, lbl]) => ({ name, f, lbl }));
@@ -4082,7 +5626,7 @@
       // ── state ─────────────────────────────────────────────────────────────────────────────────
       // favs: [{ bus, route, stop }] — the only buses this student is alerted about; star is "my bus"
       const S = {
-        role: 'student', view: 'welcome', speed: 4, sim: START, onboarded: false,
+        role: 'student', view: 'welcome', map: 'block', speed: 4, sim: START, onboarded: false,
         follow: null, sub: 'active', leaveSent: false, buffer: 2, mode: 'walk',
         favs: [], star: null,
         trip: true, lang: 'en', endArmed: false,
@@ -4109,31 +5653,88 @@
       for (const [id, R] of Object.entries(ROUTES)) { R.el = $('#' + id); R.len = R.el.getTotalLength(); }
       const pt = (R, f) => R.el.getPointAtLength(clamp(f, 0, 1) * R.len);
 
-      function buildMap() {
+      // The map is drawn one of two ways (Settings › Map style): "block" — rails, carts and pixel terrain —
+      // or "classic", the map from demo/index.html. Both sets of marks are built once and a class on the
+      // card shows one. Only the route geometry differs underneath, so switching swaps the three paths
+      // and re-lays the stops along them; positions, ETAs and the simulation never notice.
+      const ROUTE_D = {
+        block: { r1: $('#r1').getAttribute('d'), r2: $('#r2').getAttribute('d'), r3: $('#r3').getAttribute('d') },
+        classic: { r1: 'M338 234 C322 228 308 218 292 210 C276 202 262 200 248 194 C232 187 222 180 206 174 C190 168 176 164 160 160 C140 155 124 154 108 152 C92 150 76 148 62 151 C52 153 44 152 38 150', r2: 'M338 60 C314 70 294 88 272 102 C250 116 224 124 196 130 C168 136 140 142 114 146 C92 149 62 151 38 150', r3: 'M156 16 C146 42 128 62 112 82 C96 102 78 120 60 134 C52 140 44 146 38 150' },
+      };
+      const CLASSIC_LBL = {
+        Hayathnagar: [-2, 14, 'end'], 'LB Nagar': [6, 13, 'start'], Dilsukhnagar: [-2, -10, 'middle'], Mehdipatnam: [0, 14, 'middle'],
+        'Uppal X Roads': [-4, -7, 'end'], Secunderabad: [0, -8, 'middle'], Miyapur: [6, 4, 'start'],
+      };
+      function layStops() {
         const gStops = $('#stops');
+        const block = S.map === 'block';
+        gStops.textContent = '';
         for (const [id, R] of Object.entries(ROUTES)) {
           R.stops.forEach((st, i) => {
+            st.node = st.label = null;
             if (i === R.stops.length - 1) return; // the campus has its own marker
             const p = pt(R, st.f);
-            st.p = p;
-            st.node = svg('circle', { cx: p.x, cy: p.y, r: id === 'r1' ? 3.4 : 2.4, class: 'stop' + (id === 'r1' ? '' : ' minor') }, gStops);
-            if (st.lbl) {
-              const [dx, dy, anchor] = st.lbl;
-              st.label = svg('text', { x: p.x + dx, y: p.y + dy, 'text-anchor': anchor, class: 'lbl' }, gStops);
+            const cls = 'stop' + (id === 'r1' ? '' : ' minor');
+            if (block) {
+              st.p = { x: Math.round(p.x), y: Math.round(p.y) };
+              const s = id === 'r1' ? 3 : 2; // a stop is a stone platform beside the track
+              st.node = svg('rect', { x: st.p.x - s, y: st.p.y - s, width: 2 * s, height: 2 * s, class: cls }, gStops);
+            } else {
+              st.p = { x: p.x, y: p.y };
+              st.node = svg('circle', { cx: p.x, cy: p.y, r: id === 'r1' ? 3.4 : 2.4, class: cls }, gStops);
+            }
+            const lbl = block ? st.lbl : CLASSIC_LBL[st.name];
+            if (lbl) {
+              const [dx, dy, anchor] = lbl;
+              st.label = svg('text', { x: st.p.x + dx, y: st.p.y + dy, 'text-anchor': anchor, class: 'lbl' }, gStops);
               st.label.textContent = st.name;
             }
           });
         }
+      }
+      function setMapStyle(style) {
+        S.map = style;
+        $('#mapCard').classList.toggle('blk', style === 'block');
+        for (const [id, R] of Object.entries(ROUTES)) { R.el.setAttribute('d', ROUTE_D[style][id]); R.len = R.el.getTotalLength(); }
+        layStops();
+        $('#homepin').dataset.key = 'redraw';
+        $$('#mapSeg button').forEach((x) => x.classList.toggle('on', x.dataset.m === style));
+        advance(0, 1); // put every bus on its new path now rather than on the next frame
+        render();
+      }
+
+      function buildMap() {
+        $('#terrL').setAttribute('href', terrain(false));
+        $('#terrD').setAttribute('href', terrain(true));
+        // a rail is the route's own path drawn four times: two rails (a wide stroke with a gap cut down
+        // its middle), the pulse that marks the route you follow, and sleepers laid across
+        for (const [id, R] of Object.entries(ROUTES)) {
+          R.rail = svg('g', { class: 'dim' }, $('#rails'));
+          for (const cls of ['iron', 'gap', 'pwr', 'bed']) svg('path', { class: cls, d: ROUTE_D.block[id] }, R.rail);
+        }
+        layStops();
         const gBus = $('#buses');
         for (const b of Object.values(BUSES)) {
           const g = svg('g', { class: 'bus', 'data-state': 'LIVE', tabindex: 0, role: 'button', 'aria-label': `Bus ${b.n}` }, gBus);
-          svg('circle', { class: 'halo', r: 12 }, g);
-          svg('rect', { x: -14, y: -9, width: 28, height: 18, rx: 9 }, g);
-          const t = svg('text', { class: 'n', y: 3.6 }, g); t.textContent = b.n;
-          b.note = svg('text', { class: 'note', y: 21 }, g);
-          const badge = svg('g', { class: 'badge', transform: 'translate(16 -11)' }, g);
+          // block: a minecart — an open-topped body that carries its number, on two wheels
+          const k = svg('g', { class: 'k-block' }, g);
+          svg('path', { class: 'fog', d: 'M-23 -23h46v42h-46z' }, k);
+          svg('path', { class: 'halo', d: 'M-13 -11h26v18h-26z' }, k);
+          svg('path', { class: 'body', d: 'M-12 -10h24v16h-24z' }, k);
+          svg('path', { class: 'rim', d: 'M-13 -13h2v2h-2z M11 -13h2v2h-2z' }, k);
+          svg('path', { class: 'wheel', d: 'M-9 7h4v4h-4z M5 7h4v4h-4z' }, k);
+          const num = glyphs(String(b.n));
+          svg('path', { class: 'n', d: num.d }, svg('g', { transform: `translate(${-num.w} -9) scale(2)` }, k));
+          svg('path', { class: 'glint', d: 'M-11 -9h4v14h-4z' }, k);
+          // classic: the numbered pill from demo/index.html
+          const c = svg('g', { class: 'k-classic' }, g);
+          svg('circle', { class: 'halo', r: 12 }, c);
+          svg('rect', { x: -14, y: -9, width: 28, height: 18, rx: 9 }, c);
+          svg('text', { class: 'n', y: 3.6 }, c).textContent = b.n;
+          const badge = svg('g', { class: 'badge', transform: 'translate(16 -11)' }, c);
           svg('circle', { r: 6.5 }, badge);
           svg('path', { d: 'M0 -4 L1.2 -1.3 L4 -1.2 L1.8 0.6 L2.5 3.4 L0 1.8 L-2.5 3.4 L-1.8 0.6 L-4 -1.2 L-1.2 -1.3Z' }, badge);
+          b.note = svg('text', { class: 'note', y: 22 }, g);
           b.g = g;
           g.addEventListener('click', () => openSheet(b.n));
           g.addEventListener('keydown', (e) => { if (e.key === 'Enter') openSheet(b.n); });
@@ -4167,10 +5768,8 @@
       // ── simulation loop ───────────────────────────────────────────────────────────────────────
       let lastT = performance.now();
       let lastText = 0;
-      function tick(t) {
-        const dt = Math.min(0.1, (t - lastT) / 1000);
-        lastT = t;
-        const sdt = dt * S.speed;
+      // one step of the simulated morning: `sdt` simulated seconds, `dt` real seconds (for the glide)
+      function advance(sdt, dt) {
         S.sim += sdt * 1000;
         for (const b of Object.values(BUSES)) {
           b.f += sdt / (ROUTES[b.route].trip * 60);
@@ -4183,10 +5782,17 @@
           b.state = age > 90e3 ? 'DARK' : age > 30e3 ? 'DEGRADED' : 'LIVE';
           b.shown += (b.fixF - b.shown) * Math.min(1, dt * 2.5); // glide between fixes
           const p = pt(ROUTES[b.route], b.shown);
-          b.g.setAttribute('transform', `translate(${p.x.toFixed(1)} ${p.y.toFixed(1)})`);
+          // carts sit on the block map's 2px grid, so they advance in steps; on the classic map buses glide
+          b.g.setAttribute('transform', S.map === 'block'
+            ? `translate(${Math.round(p.x / 2) * 2} ${Math.round(p.y / 2) * 2})` : `translate(${p.x.toFixed(1)} ${p.y.toFixed(1)})`);
           if (S.role === 'admin') b.dot.style.left = (b.shown * 100).toFixed(2) + '%';
         }
         if (S.dz && S.sim > S.dz.until) restoreSignal();
+      }
+      function tick(t) {
+        const dt = Math.min(0.1, (t - lastT) / 1000);
+        lastT = t;
+        advance(dt * S.speed, dt);
         if (t - lastText > 250) { lastText = t; render(); }
         requestAnimationFrame(tick);
       }
@@ -4220,6 +5826,7 @@
         const fr = S.follow ? BUSES[S.follow.bus].route : 'r1';
         for (const [id, R] of Object.entries(ROUTES)) {
           R.el.classList.toggle('dim', id !== fr);
+          R.rail.classList.toggle('dim', id !== fr);
           R.stops.forEach((st, i) => {
             const mine = !!S.follow && id === fr && i === S.follow.stop;
             if (st.node) st.node.classList.toggle('mine', mine);
@@ -4235,12 +5842,22 @@
         const st = ROUTES[fr].stops[S.follow.stop];
         if (!st.p) return;
         const h = { x: st.p.x - 24, y: st.p.y + 30 };
-        svg('path', { class: 'walk', d: `M${h.x} ${h.y} Q${st.p.x - 20} ${st.p.y + 8} ${st.p.x} ${st.p.y}` }, g);
-        svg('circle', { class: 'ring', cx: st.p.x, cy: st.p.y, r: 8 }, g);
-        const hg = svg('g', { class: 'home', transform: `translate(${h.x} ${h.y})` }, g);
-        svg('circle', { r: 7 }, hg);
-        svg('path', { d: 'M-3.5 0.5 L0 -3 L3.5 0.5 V3.5 H-3.5Z' }, hg);
-        const t = svg('text', { class: 'lbl', x: h.x - 10, y: h.y + 3, 'text-anchor': 'end' }, g);
+        if (S.map === 'block') {
+          // home is a bed; the walk to the stop is a dotted path that only turns at right angles
+          svg('path', { class: 'walk', d: `M${h.x} ${h.y - 7} V${st.p.y + 14} H${st.p.x} V${st.p.y + 5}` }, g);
+          svg('rect', { class: 'ring', x: st.p.x - 7, y: st.p.y - 7, width: 14, height: 14 }, g);
+          const hg = svg('g', { class: 'bed', transform: `translate(${h.x} ${h.y})` }, g);
+          svg('path', { class: 'pillow', d: 'M-9 -5h4v4h-4z' }, hg);
+          svg('path', { class: 'quilt', d: 'M-5 -5h14v4h-14z' }, hg);
+          svg('path', { class: 'frame', d: 'M-9 -1h18v2h-18z M-9 1h2v2h-2z M7 1h2v2h-2z' }, hg);
+        } else {
+          svg('path', { class: 'walk', d: `M${h.x} ${h.y} Q${st.p.x - 20} ${st.p.y + 8} ${st.p.x} ${st.p.y}` }, g);
+          svg('circle', { class: 'ring', cx: st.p.x, cy: st.p.y, r: 8 }, g);
+          const hg = svg('g', { class: 'home', transform: `translate(${h.x} ${h.y})` }, g);
+          svg('circle', { r: 7 }, hg);
+          svg('path', { d: 'M-3.5 0.5 L0 -3 L3.5 0.5 V3.5 H-3.5Z' }, hg);
+        }
+        const t = svg('text', { class: 'lbl', x: h.x - (S.map === 'block' ? 13 : 10), y: h.y + 3, 'text-anchor': 'end' }, g);
         t.textContent = `Home · ${travel().min} ${travel().unit}`;
         if (!st.label) {
           const l = svg('text', { class: 'lbl mine', x: st.p.x, y: st.p.y - 9, 'text-anchor': 'middle' }, g);
@@ -4248,6 +5865,7 @@
         }
       }
 
+      // each character is a tile; a changed one drops in rather than flipping
       function setFlap(node, text) {
         const chars = [...text];
         while (node.children.length < chars.length) node.appendChild(Object.assign(document.createElement('span'), { className: 'f' }));
@@ -4255,14 +5873,15 @@
         chars.forEach((ch, i) => {
           const c = node.children[i];
           if (c.dataset.ch === ch) return;
+          const first = !c.dataset.ch;
           c.dataset.ch = ch;
           c.classList.toggle('sep', ch === '–' || ch === ' ');
-          if (!c.textContent) { c.textContent = ch; return; }
+          px(c, ch);
+          if (first) return;
           c.classList.remove('flip');
           void c.offsetWidth;
           c.style.animationDelay = i * 50 + 'ms';
           c.classList.add('flip');
-          setTimeout(() => { if (c.dataset.ch === ch) c.textContent = ch; }, 160 + i * 50);
         });
       }
 
@@ -4295,6 +5914,7 @@
         $('#unit').hidden = !showEta || e.p50 < 0.6;
         const conf = $('#conf');
         conf.hidden = !showEta;
+        setHearts(showEta ? e.conf : null);
         if (showEta) { conf.className = 'conf ' + e.conf; conf.title = conf.ariaLabel = `${e.conf} confidence`; }
 
         if (S.sub === 'missed') {
@@ -4330,7 +5950,7 @@
         leave.classList.toggle('go', go);
         $('#leaveBig').textContent = go ? 'Leave now' : `Leave in ${Math.max(1, Math.floor(leaveIn))} min`;
         $('#leaveWhy').textContent = `${travel().min} ${travel().unit} + ${S.buffer} min margin` + (spread >= 1 ? ` + ${Math.round(spread)} min because the bus's time is uncertain` : '');
-        $('#fuse').style.width = clamp(leaveIn / 8, 0, 1) * 100 + '%';
+        $('#fuse').style.setProperty('--v', Math.max(1, Math.round(clamp(leaveIn / 8, 0, 1) * 20)) / 20); // twenty segments, never fewer than one while there is time left
         if (go && !S.leaveSent && S.onboarded) {
           S.leaveSent = true;
           notify({
@@ -4367,7 +5987,7 @@
           else if (mine) { const e = eta(b, st.f); right = e && !e.passed ? etaLabel(e) : '—'; }
           else if (b.state !== 'DARK') right = '~' + clock(b.fixAt + (st.f - b.fixF) * R.trip * 60e3);
           const here = i === lastIdx
-            ? `<span class="here ${b.state === 'DEGRADED' ? 'warn' : b.state === 'DARK' ? 'dark' : ''}">${b.n}</span>` : '';
+            ? `<span class="here ${b.state === 'DEGRADED' ? 'warn' : b.state === 'DARK' ? 'dark' : ''}">${CART_I}${b.n}</span>` : '';
           return `<li class="${passed ? 'passed' : ''} ${next ? 'next' : ''} ${mine ? 'mine' : ''}">
         <span class="rail"><span class="d"></span>${i < R.stops.length - 1 ? '<span class="seg-l"></span>' : ''}</span>
         <span class="nm"><span><b style="font-weight:${mine ? 800 : 500}">${esc(st.name)}</b>${mine ? '<span class="you">your stop</span>' : ''}${here}</span><span class="r">${right}</span></span>
@@ -4427,7 +6047,7 @@
         const res = STOPS.map((s) => ({ s, sc: score(q, s) })).filter((x) => x.sc >= 0.5).sort((a, b) => b.sc - a.sc).slice(0, 4);
         hint.innerHTML = !res.length ? `No stops found for “${esc(raw)}”. Try the area name.`
           : res[0].sc < 0.9 ? `Showing results for <b style="color:var(--ink)">${esc(res[0].s.name)}</b>` : '';
-        ul.innerHTML = res.map(({ s }) => stopCard(s)).join('');
+        ul.innerHTML = res.map(({ s }) => stopCard(s)).join('') || `<li class="none">${sprite(ART.chest)}</li>`; // an empty chest
         updateResultEtas();
       }
 
@@ -4440,7 +6060,7 @@
           for (const x of SCHEDULED[ref.route]) lines.push(
             `<div class="bl"><span class="bl-n">Bus ${x.n}</span><span class="bl-d muted" data-sched="${x.n}" data-at="${x.at}"></span><span></span>${heart(x.n)}</div>`);
         }
-        return `<li class="stop-card"><div class="sc-head"><span class="pin"><svg viewBox="0 0 24 24" fill="currentColor"><path d="M12 2a7 7 0 0 0-7 7c0 5 7 13 7 13s7-8 7-13a7 7 0 0 0-7-7Zm0 9.5A2.5 2.5 0 1 1 12 6.5a2.5 2.5 0 0 1 0 5Z"/></svg></span>
+        return `<li class="stop-card"><div class="sc-head"><span class="pin">${sprite(ART.pin)}</span>
       <div><b>${esc(s.name)}</b><small>${[...new Set(s.refs.map((r) => ROUTES[r.route].short))].join(' · ')}</small></div></div>${lines.join('')}</li>`;
       }
 
@@ -4474,8 +6094,9 @@
       }
 
       // ── favourites: the only buses this phone is alerted about; one is starred as "my bus" ────
-      const HEART = '<svg viewBox="0 0 24 24"><path d="M12 20s-7-4.4-7-9.6A4 4 0 0 1 12 8a4 4 0 0 1 7 2.4C19 15.6 12 20 12 20Z"/></svg>';
-      const starSvg = (on) => `<svg viewBox="0 0 24 24" fill="${on ? 'currentColor' : 'none'}" stroke="currentColor" stroke-width="2" stroke-linejoin="round"><path d="M12 3.5l2.6 5.4 5.9.8-4.3 4.1 1 5.9L12 16.9l-5.2 2.8 1-5.9-4.3-4.1 5.9-.8z"/></svg>`;
+      // saving a bus is a bookmark here: hearts are taken (they show confidence)
+      const HEART = sprite(ART.mark);
+      const starSvg = () => sprite(ART.star);
       const favOf = (n) => S.favs.find((f) => f.bus === n);
       // an alert about a bus or a route reaches this student only if a favourite matches it
       const visible = (x) => (!x.bus || !!favOf(x.bus)) && (!x.route || S.favs.some((f) => f.route === x.route));
@@ -4513,11 +6134,11 @@
           const [text, cls] = favStatus(f);
           return `<li class="fav ${star ? 'star' : ''}">
         <button class="fav-star" data-star="${f.bus}" aria-pressed="${star}" aria-label="${star ? `Bus ${f.bus} is your starred bus` : `Make Bus ${f.bus} your starred bus`}">${starSvg(star)}</button>
-        <button class="fav-main" data-track="${f.bus}"><b>Bus ${f.bus}</b>${star ? '<span class="startag">Your bus</span>' : ''}<small>${esc(R.stops[f.stop].name)} · ${R.short}</small></button>
+        <button class="fav-main" data-track="${f.bus}"><b>${CART_I}Bus ${f.bus}</b>${star ? `<span class="startag px">${pxHtml('Your bus')}</span>` : ''}<small>${esc(R.stops[f.stop].name)} · ${R.short}</small></button>
         <span class="fav-eta bl-d ${cls}">${esc(text)}</span>
         <button class="fav-x" data-unfav="${f.bus}" aria-label="Remove Bus ${f.bus} from Favourites">×</button>
       </li>`;
-        }).join('') || '<li class="fav-empty">No favourites yet. Find your stop and tap the heart next to a bus. The first one you add becomes your starred bus.</li>';
+        }).join('') || '<li class="fav-empty">No favourites yet. Find your stop and tap the bookmark next to a bus. The first one you add becomes your starred bus.</li>';
         const ul = $('#favList');
         if (ul.dataset.html !== html) { ul.innerHTML = html; ul.dataset.html = html; }
       }
@@ -4544,9 +6165,9 @@
         const items = S.inbox.filter((x) => visible(x) && (S.tier === null || x.tier === S.tier)).sort((a, b) => b.at - a.at);
         $('#inboxList').innerHTML = items.map((x) => `
       <li class="stub ${TIERS[x.tier].cls} ${x.unread ? 'unread' : ''}" data-id="${x.id}">
-        <div class="stub-l"><span class="tier">${TIERS[x.tier].name}</span><span class="stub-time">${when(x.at)}</span></div>
+        <div class="stub-l"><span class="tier">${sprite(ART[TIER_ART[x.tier]])}${TIERS[x.tier].name}</span><span class="stub-time">${when(x.at)}</span></div>
         <div class="stub-r"><b>${esc(x.title)}</b><p>${md(x.body)}</p>
-          ${x.ticket ? `<span class="ticket ${x.ticket === 'Back in service' ? 'ok' : ''}"><i></i>${esc(x.ticket)}</span>` : ''}
+          ${x.ticket ? `<span class="ticket ${x.ticket === 'Back in service' ? 'ok' : ''}">${sprite(ART.anvil)}${esc(x.ticket)}</span>` : ''}
           <div class="stub-meta">${x.from ? `<span>${esc(x.from)}</span>` : ''}${x.quiet ? '<span class="quiet">Recorded · not pushed while you\'re aboard</span>' : ''}
           ${x.tier === 0 && !x.ack ? `<button class="btn xs on" data-ack="${x.id}">Got it</button>` : x.tier === 0 ? '<span>Acknowledged ✓</span>' : ''}</div>
         </div>
@@ -4556,21 +6177,21 @@
         const n = S.inbox.filter((x) => x.unread && visible(x)).length;
         const b = $('#badge');
         b.hidden = !n;
-        b.textContent = n;
+        px(b, String(n));
         if (bump) { b.classList.remove('bump'); void b.offsetWidth; b.classList.add('bump'); }
       }
 
       // ── notifications: banner + inbox record ──────────────────────────────────────────────────
       let pushTimer;
       let pushTap = null;
-      const BUS_ICON = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><path d="M4 17 9 9l5 6 6-10"/></svg>';
+      const BUS_ICON = sprite(ART.cart, 'solid');
       const SMS_ICON = '<svg viewBox="0 0 24 24" fill="#fff"><path d="M12 3C6.5 3 2 6.6 2 11c0 2.4 1.3 4.6 3.4 6L4.5 21l4.2-2.3c1 .2 2.1.3 3.3.3 5.5 0 10-3.6 10-8s-4.5-8-10-8Z"/></svg>';
 
-      function banner({ app = 'ETA', sms = false, title, body, crit = false, actions = [], onTap = null, ms = 7000 }) {
+      function banner({ app = 'ETA', sms = false, title, body, crit = false, actions = [], onTap = null, ms = 7000, icon = '' }) {
         const p = $('#push');
         p.className = 'push' + (crit ? ' crit' : '');
         p.innerHTML = `<div class="push-h"><span class="appicon ${sms ? 'sms' : ''}">${sms ? SMS_ICON : BUS_ICON}</span><span class="app">${esc(app)}</span><span class="when">now</span></div>
-      <div class="push-t">${esc(title)}</div><div class="push-b">${md(body)}</div>
+      <div class="push-t">${icon && sprite(ART[icon])}${esc(title)}</div><div class="push-b">${md(body)}</div>
       ${actions.length ? `<div class="push-acts">${actions.map((a, i) => `<button data-act="${i}">${esc(a.label)}</button>`).join('')}</div>` : ''}`;
         pushTap = (i) => { hideBanner(); if (i !== undefined && actions[i]) actions[i].fn(); else if (onTap) onTap(); };
         requestAnimationFrame(() => p.classList.add('show'));
@@ -4598,7 +6219,7 @@
         updateBadge(true);
         if (S.view === 'inbox') renderInbox();
         if (quiet) toast('Alert recorded, not pushed — you\'re on the bus');
-        else banner({ title, body, crit: tier === 0, actions, onTap: () => go('inbox'), ms: tier === 0 ? 10000 : 7000 });
+        else banner({ title, body, crit: tier === 0, actions, onTap: () => go('inbox'), ms: tier === 0 ? 10000 : 7000, icon: TIER_ART[tier] });
         return item;
       }
       let pnoteTimer;
@@ -4690,7 +6311,10 @@
       function paintOtp(v) {
         $$('#otp .cell').forEach((c, i) => {
           const ch = v[i] || '';
-          if (c.textContent !== ch) { c.textContent = ch; c.classList.toggle('filled', !!ch); }
+          if ((c.dataset.ch || '') === ch) return;
+          c.dataset.ch = ch;
+          if (ch) px(c, ch); else { c.textContent = ''; delete c.dataset.shown; }
+          c.classList.toggle('filled', !!ch);
         });
         if (v.length === 6 && !S.otpDone) {
           S.otpDone = true;
@@ -4820,6 +6444,12 @@
         toast(`${travel().label} · ${travel().min} min to your stop`);
         render();
       });
+      $('#mapSeg').addEventListener('click', (e) => {
+        const b = e.target.closest('[data-m]');
+        if (!b || b.dataset.m === S.map) return;
+        setMapStyle(b.dataset.m);
+        toast(`Map style: ${b.textContent}`);
+      });
       $$('.sw:not(.lock)').forEach((s) => s.addEventListener('click', () => s.classList.toggle('on')));
       $('#sheetBack').addEventListener('click', closeSheet);
       $('#shClose').addEventListener('click', closeSheet);
@@ -4865,9 +6495,9 @@
         $('#dStart').textContent = t.startTrip;
         $('#dOn').textContent = t.onTrip;
         $('#dDir').textContent = `Route 1 · ${t.toCampus}`;
-        $('#dSent').textContent = Math.round(b.fixF * ROUTES.r1.trip * 12); // one ping every 5 s
+        px($('#dSent'), String(Math.round(b.fixF * ROUTES.r1.trip * 12))); // one ping every 5 s
         $('#dSentL').textContent = t.pingsSent;
-        $('#dWait').textContent = off ? Math.round(age / 5) : 0;
+        px($('#dWait'), String(off ? Math.round(age / 5) : 0));
         $('#dWaitL').textContent = t.waitingToSend;
         $('#dHold').classList.toggle('hold', off);
         $('#dLast').textContent = t.lastSent(age < 60 ? t.secondsAgo(age) : t.minutesAgo(Math.floor(age / 60)), 5);
@@ -4947,7 +6577,7 @@
         });
         $('#aUpd').textContent = clock(S.sim);
         setHtml($('#aTiles'), [[c.live, 'live', '●', 'Live'], [c.late, 'late', '◌', 'Late updates'], [c.lost, 'lost', '○', 'No signal'], [S.broken ? 1 : 0, 'lost', '✕', 'Out of commission']]
-          .map(([n, cls, g, label]) => `<div class="a-tile"><b>${n}</b>${sig(cls, g, label)}</div>`).join(''));
+          .map(([n, cls, g, label]) => `<div class="a-tile"><b class="px">${pxHtml(String(n))}</b>${sig(cls, g, label)}</div>`).join(''));
 
         const open = S.tickets.filter((t) => t.status === 'open').length;
         $('#aTk').hidden = !open;
@@ -5098,7 +6728,7 @@
       const STEPS = {
         student: [
           {
-            t: 'Claim with a roll number', talk: 'Roll numbers will be taken from the college DB, so we can auto log-in.',
+            t: 'Claim with a roll number', talk: 'Roll numbers will be taken from the college DB, so we can auto login.',
             run: () => { S.onboarded = false; S.follow = null; S.favs = []; S.star = null; $('#roll').value = ''; resetOtp(); updateBadge(); go('welcome'); }
           },
           {
@@ -5177,7 +6807,7 @@
         $('#dscreen').hidden = role !== 'driver';
         $$('#roles button').forEach((b) => b.classList.toggle('on', b.dataset.role === role));
         $('#roleHead').textContent = ROLE_HEAD[role];
-        $('#steps').innerHTML = STEPS[role].map((s, i) => `<li class="stn" data-step="${i}"><button><span class="dot">${i + 1}</span><span class="t">${s.t}</span></button><div class="talk"><p>${s.talk}</p></div></li>`).join('');
+        $('#steps').innerHTML = STEPS[role].map((s, i) => `<li class="stn" data-step="${i}"><button><span class="dot px">${pxHtml(String(i + 1))}</span><span class="t">${s.t}</span></button><div class="talk"><p>${s.talk}</p></div></li>`).join('');
         fit();
         render();
         syncStep();
@@ -5199,8 +6829,45 @@
         return parts.join('   ◆   ') + '   ◆';
       }
       const led = $('#ledText');
-      function setLed() { $('#ledText').textContent = ledText(); }
-      led.addEventListener('animationiteration', setLed);
+      // the board scrolls on its own dot grid: whole 3px columns, and a fresh line each time it runs off
+      let ledAnim;
+      function setLed() {
+        const w = px(led, ledText(), true) * 3;
+        if (ledAnim) { ledAnim.onfinish = null; ledAnim.cancel(); ledAnim = null; }
+        const start = Math.ceil(led.parentNode.clientWidth / 3) * 3;
+        if (!start || matchMedia('(prefers-reduced-motion: reduce)').matches) { led.style.transform = 'translateX(12px)'; return; }
+        led.style.transform = '';
+        ledAnim = led.animate([{ transform: `translateX(${start}px)` }, { transform: `translateX(${-w}px)` }],
+          { duration: (start + w) * 26, easing: `steps(${(start + w) / 3})` });
+        ledAnim.currentTime = (start - 12) * 26; // start with text already on the board
+        ledAnim.onfinish = setLed;
+      }
+
+      // ── block edition: dress the static markup ────────────────────────────────────────────────
+      // swaps the demo's line icons for their pixel twins and sets the fixed bitmap labels, once at boot
+      function dress() {
+        const swap = (sel, arts, cls) => $$(sel).forEach((n, i) => { n.outerHTML = sprite(ART[arts[i]], cls); });
+        $$('.tab').forEach((t, i) => { t.querySelector('svg').outerHTML = `<span class="ic">${sprite(ART[['map', 'search', 'star', 'bell', 'lever'][i]])}</span>`; });
+        swap('#roles svg', ['book', 'cart', 'screen']);
+        swap('#fsBtn .in', ['grow'], 'in');
+        swap('#fsBtn .out', ['shrink'], 'out');
+        swap('#themeBtn svg', ['sun']);
+        swap('.scen .ic svg', ['boots', 'snow', 'anvil', 'sign', 'clock']);
+        swap('.brand-mark svg', ['cart'], 'solid');
+        swap('.h-stop svg', ['pin']);
+        swap('.search svg', ['search']);
+        swap('.assure svg', ['lock']);
+        const conn = $('.conn');
+        conn.lastChild.remove();
+        px(conn.appendChild(document.createElement('span')), 'Live');
+        px($('#unit'), 'min');
+        px($('#hStar'), '★ Your bus');
+        $$('.stat b').forEach(pxNums);
+        $('.minimap').innerHTML = sprite(ART.bed); // home is where the bed is
+        $('#dHold').insertAdjacentHTML('afterbegin', sprite(ART.chest)); // unsent positions wait in a chest
+        const orbs = [[-58, -44], [-66, 6], [-40, 48], [0, -60], [44, 46], [66, 0], [56, -46], [4, 58]];
+        $('#tick').innerHTML = sprite(ART.tick, 'solid') + orbs.map(([x, y]) => `<i style="--dx:${x}px;--dy:${y}px"></i>`).join('');
+      }
 
       // ── keyboard & layout ─────────────────────────────────────────────────────────────────────
       function toggleTheme() {
@@ -5251,6 +6918,7 @@
 
       // ── boot ──────────────────────────────────────────────────────────────────────────────────
       fit();
+      dress();
       buildMap();
       buildAdmin();
       $('#dscreen .sb-r').innerHTML = $('#screen .sb-r').innerHTML;
@@ -5259,9 +6927,25 @@
       S.inbox = seedInbox();
       updateBadge();
       setLed();
-      led.style.animationDelay = '-11s'; // start with text already on the board
       setRole('student');
       go('welcome');
+      // deep links, for presenters and screenshots — see the note at the top of this file
+      {
+        const q = new URLSearchParams(location.hash.slice(1));
+        if (q.get('theme') === 'dark') toggleTheme();
+        if (q.has('speed')) setSpeed(Number(q.get('speed')));
+        if (ROLES.includes(q.get('role'))) setRole(q.get('role'));
+        const s = STEPS[S.role][Number(q.get('step')) - 1];
+        if (s) s.run();
+        const DO = { L: scenarioLeave, D: scenarioDeadZone, B: scenarioBreakdown, A: scenarioAnnounce, R: scenarioReset };
+        for (const k of (q.get('do') || '').toUpperCase()) if (DO[k]) DO[k]();
+        if ($(`.view[data-view="${q.get('view')}"]`)) { ensureApp(); go(q.get('view')); }
+        for (let i = Number(q.get('ff')) || 0; i > 0; i--) advance(1, 1);
+        if (q.get('map') === 'classic') setMapStyle('classic');
+        if (MODES[q.get('mode')]) $(`#modeSeg [data-mode="${q.get('mode')}"]`).click();
+        if (BUSES[q.get('sheet')]) openSheet(Number(q.get('sheet')));
+        if (location.hash) render();
+      }
       requestAnimationFrame((t) => { lastT = t; requestAnimationFrame(tick); });
     })();
   </script>

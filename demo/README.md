@@ -37,6 +37,8 @@ A single self-contained page that walks through what ETA does for the three peop
 5. **Dead zone** (`5` or `D`): the marker turns dashed amber, then hollow red; the arrival time disappears instead of guessing. Press `D` to restore it — the buffered positions are replayed.
 6. **Alerts** (`6`): press `B` and `A`; show the tiers, the ticket status and the acknowledgement. Tap *I'm on the bus* on the home screen to show that non-critical alerts are recorded but not pushed.
 
+**Means of transport.** In Settings the student chooses how they reach their stop — *Walk* (5 min), *Cycle* (2 min) or *Bike* (1 min). The "Leave in" time, its explanation, the home label on the map and the leave-now alert all follow the choice. The three times are invented for this demo.
+
 **Favourites decide who is alerted.** An alert about a bus reaches this phone only if that bus is in Favourites; an alert sent to one route reaches it only if a favourite is on that route. To show it: remove Bus 27 in Favourites, press `B`, and the phone stays quiet while the presenter panel says why. Notices sent to all students always arrive.
 
 ## The driver (`V`, then `1`–`3`)
@@ -50,6 +52,37 @@ A single self-contained page that walks through what ETA does for the three peop
 1. **Live fleet**: every bus with its signal, last ping and position along its route. Press `D` and Bus 14's row turns amber, then red.
 2. **Tickets**: chapter `2` (or `B`) opens a breakdown ticket for Bus 27 with the students notified and acknowledging. *Mark back in service* closes it and tells the students.
 3. **Announcements**: choose how loud and who it is for, then *Send announcement now*; switch to the Student view to see it land. The recent list shows how many have read each one.
+
+## Block edition (`index-block.html`)
+
+The same demo redrawn in a block-game look for a student audience. Open `index-block.html` instead of `index.html`; the story, wording, numbers, scenarios and every key above are identical.
+
+What changes is the drawing:
+
+- **Buses are minecarts on rails.** Routes only turn at right angles, the route you follow carries a pulse towards campus, your starred bus is the marigold cart with a glint, and a bus that loses signal sits hollow inside a patch of fog.
+- **Other objects:** your stop is a lantern, home is a bed, the campus is a tower, passed stops keep a lit torch in the route list, switches are levers, and the driver's unsent positions wait in a chest.
+- **Numbers and small labels** use a bitmap typeface; the departure board is a true dot matrix. Sentences stay in the normal typefaces so they remain easy to read.
+- **Confidence is three hearts**, so saving a bus in Search is a bookmark rather than a heart.
+- **The map can be switched back.** In the student's Settings, *Map style* offers *Blocks* (carts on rails) or *Classic* (the map from `index.html`). Only the map changes; add `map=classic` to a deep link to open with it.
+- **The Transport office console is only lightly touched** — stepped corners, signal lamps and a cart on each bus's progress line.
+
+It is still one file with no network. The typeface, icons and map are generated inside the page; nothing is taken from any game's assets.
+
+**Deep links** (useful for jumping straight to a moment or taking screenshots) go after `#`, joined with `&`:
+
+| Part | Does |
+|---|---|
+| `role=student` / `driver` / `admin` | Whose screen |
+| `step=4` | Chapter of that view |
+| `do=D` | Press scenario keys in order (`L`, `D`, `B`, `A`, `R`) |
+| `ff=120` | Fast-forward the simulation by that many seconds |
+| `view=settings` | Open a student screen directly |
+| `sheet=14` | Open that bus's detail sheet |
+| `theme=dark`, `speed=0` | Dark theme; simulated-time speed |
+
+Example: `index-block.html#step=4&do=D&ff=120` opens the student's map with Bus 14's signal already lost.
+
+`minecraft-study.html` and `blend-study.html` are the two design studies that led to this file and are not needed to present.
 
 ## What is real and what is not
 
